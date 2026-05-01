@@ -6,9 +6,12 @@ Personal-finance app for salaried Australians with multiple accounts (transactio
 
 iOS-first. SwiftUI + Vercel (Next.js Edge Functions) + Supabase Postgres. Bank sync via Up Bank API direct + Basiq. LLM-assisted transaction categorisation (Anthropic Claude Haiku).
 
-Full product spec: [`docs/PRD.md`](docs/PRD.md).
-Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-Decisions log: [`docs/DECISIONS.md`](docs/DECISIONS.md).
+**Picking this up on a new machine?** Start with [`docs/MAC_HANDOFF.md`](docs/MAC_HANDOFF.md) (or [`docs/SETUP.md`](docs/SETUP.md) for the long-form guide).
+
+- Full product spec: [`docs/PRD.md`](docs/PRD.md)
+- Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Decisions log: [`docs/DECISIONS.md`](docs/DECISIONS.md)
+- Setup & operations: [`docs/SETUP.md`](docs/SETUP.md)
 
 ## Repo layout
 
