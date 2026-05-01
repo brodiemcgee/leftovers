@@ -154,13 +154,12 @@ async function upsertTransactions(
   accountIdMap: Map<string, string>,
   transactions: NormalisedTransaction[],
 ): Promise<{ added: number; updated: number }> {
-  let added = 0;
-  let updated = 0;
   type TxInsert = Database['public']['Tables']['transactions']['Insert'];
+  const rows: TxInsert[] = [];
   for (const t of transactions) {
     const accountId = accountIdMap.get(t.sourceAccountId);
     if (!accountId) continue;
-    const row: TxInsert = {
+    rows.push({
       user_id: userId,
       account_id: accountId,
       source_transaction_id: t.sourceTransactionId,
@@ -174,13 +173,20 @@ async function upsertTransactions(
       ...(t.rawPayload !== undefined && {
         raw_payload: t.rawPayload as Database['public']['Tables']['transactions']['Row']['raw_payload'],
       }),
-    };
+    });
+  }
+
+  let added = 0;
+  let updated = 0;
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
     const { data, error } = await supabase
       .from('transactions')
-      .upsert(row, { onConflict: 'account_id,source_transaction_id', ignoreDuplicates: false })
+      .upsert(chunk, { onConflict: 'account_id,source_transaction_id', ignoreDuplicates: false })
       .select('id, created_at, updated_at');
     if (error) throw error;
-    for (const r of data) {
+    for (const r of data ?? []) {
       if (r.created_at === r.updated_at) added += 1;
       else updated += 1;
     }
