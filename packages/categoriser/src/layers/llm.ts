@@ -66,7 +66,7 @@ export async function classifyByLlm(
       classification: parsed.data.classification,
       confidence,
       classifiedBy: 'llm',
-      reasoning: parsed.data.reasoning,
+      ...(parsed.data.reasoning !== undefined && { reasoning: parsed.data.reasoning }),
       requiresConfirmation,
     },
     usage: {

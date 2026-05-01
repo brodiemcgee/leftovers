@@ -7,7 +7,7 @@ import type { SubscriptionStatusEnum } from '@leftovers/shared/database';
 let stripeSingleton: Stripe | null = null;
 function stripe(): Stripe {
   if (stripeSingleton) return stripeSingleton;
-  stripeSingleton = new Stripe(env.stripeSecretKey, { apiVersion: '2024-11-20.acacia' });
+  stripeSingleton = new Stripe(env.stripeSecretKey, { apiVersion: '2025-02-24.acacia' });
   return stripeSingleton;
 }
 

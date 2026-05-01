@@ -28,7 +28,7 @@ export async function handleCronSync(req: Request): Promise<Response> {
     for (const c of data) {
       try {
         const r = await runConnectionSync({ userId: c.user_id, connectionId: c.id, source: c.source });
-        results.push({ connectionId: c.id, status: 'ok', ...r });
+        results.push({ status: 'ok', ...r });
       } catch (e) {
         captureError(e, { connectionId: c.id });
         results.push({

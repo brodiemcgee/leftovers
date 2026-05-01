@@ -171,7 +171,9 @@ async function upsertTransactions(
       merchant_normalised: normaliseMerchant(t.merchantRaw),
       description: t.description,
       location: t.location,
-      raw_payload: t.rawPayload as Database['public']['Tables']['transactions']['Insert']['raw_payload'],
+      ...(t.rawPayload !== undefined && {
+        raw_payload: t.rawPayload as Database['public']['Tables']['transactions']['Row']['raw_payload'],
+      }),
     };
     const { data, error } = await supabase
       .from('transactions')
@@ -263,9 +265,15 @@ async function categoriseUnclassified(ctx: SyncContext): Promise<void> {
   type PendingRow = (typeof pending)[number];
   for (const t of pending as PendingRow[]) {
     const merchant = t.merchant_normalised ?? '';
-    const priorByMerchant = (history ?? []).filter(
-      (h) => h.merchant_normalised && merchant.length > 0 && h.merchant_normalised.includes(merchant.slice(0, 8)),
-    );
+    const priorByMerchant = (history ?? [])
+      .filter(
+        (h) => h.merchant_normalised && merchant.length > 0 && h.merchant_normalised.includes(merchant.slice(0, 8)),
+      )
+      .map((h) => ({
+        merchantNormalised: h.merchant_normalised,
+        amountCents: h.amount_cents,
+        postedAt: h.posted_at,
+      }));
     const accountTypeRow = (t as PendingRow & { accounts: { account_type: string } | null }).accounts;
     const result: ClassificationOutput = await classify(
       {

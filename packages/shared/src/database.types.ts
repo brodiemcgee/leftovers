@@ -78,9 +78,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['connections']['Row'], 'id' | 'created_at' | 'updated_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['connections']['Row']>;
         Update: Partial<Database['public']['Tables']['connections']['Row']>;
       };
       accounts: {
@@ -100,9 +98,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['accounts']['Row'], 'id' | 'created_at' | 'updated_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['accounts']['Row']>;
         Update: Partial<Database['public']['Tables']['accounts']['Row']>;
       };
       categories: {
@@ -118,9 +114,7 @@ export interface Database {
           is_system: boolean;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['categories']['Row'], 'id' | 'created_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['categories']['Row']>;
         Update: Partial<Database['public']['Tables']['categories']['Row']>;
       };
       transactions: {
@@ -149,9 +143,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['transactions']['Row'], 'id' | 'created_at' | 'updated_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['transactions']['Row']>;
         Update: Partial<Database['public']['Tables']['transactions']['Row']>;
       };
       categorisation_rules: {
@@ -168,9 +160,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['categorisation_rules']['Row'], 'id' | 'created_at' | 'updated_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['categorisation_rules']['Row']>;
         Update: Partial<Database['public']['Tables']['categorisation_rules']['Row']>;
       };
       fixed_obligations: {
@@ -190,9 +180,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['fixed_obligations']['Row'], 'id' | 'created_at' | 'updated_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['fixed_obligations']['Row']>;
         Update: Partial<Database['public']['Tables']['fixed_obligations']['Row']>;
       };
       pay_cycles: {
@@ -210,9 +198,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['pay_cycles']['Row'], 'id' | 'created_at' | 'updated_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['pay_cycles']['Row']>;
         Update: Partial<Database['public']['Tables']['pay_cycles']['Row']>;
       };
       sub_budgets: {
@@ -227,9 +213,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['sub_budgets']['Row'], 'id' | 'created_at' | 'updated_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['sub_budgets']['Row']>;
         Update: Partial<Database['public']['Tables']['sub_budgets']['Row']>;
       };
       recurring_groups: {
@@ -245,9 +229,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['recurring_groups']['Row'], 'id' | 'created_at' | 'updated_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['recurring_groups']['Row']>;
         Update: Partial<Database['public']['Tables']['recurring_groups']['Row']>;
       };
       sync_events: {
@@ -263,10 +245,7 @@ export interface Database {
           started_at: string;
           finished_at: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['sync_events']['Row'], 'id' | 'started_at'> & {
-          id?: string;
-          started_at?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['sync_events']['Row']>;
         Update: Partial<Database['public']['Tables']['sync_events']['Row']>;
       };
       llm_calls: {
@@ -281,9 +260,7 @@ export interface Database {
           response_json: Json | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['llm_calls']['Row'], 'id' | 'created_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['llm_calls']['Row']>;
         Update: Partial<Database['public']['Tables']['llm_calls']['Row']>;
       };
       notification_deliveries: {
@@ -294,9 +271,7 @@ export interface Database {
           payload: Json;
           sent_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['notification_deliveries']['Row'], 'id' | 'sent_at'> & {
-          id?: string;
-        };
+        Insert: Partial<Database['public']['Tables']['notification_deliveries']['Row']>;
         Update: Partial<Database['public']['Tables']['notification_deliveries']['Row']>;
       };
     };

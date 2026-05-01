@@ -26,7 +26,7 @@ export function initSentry(): void {
 export function captureError(e: unknown, context?: Record<string, unknown>): void {
   initSentry();
   if (env.sentryDsn) {
-    Sentry.captureException(e, { extra: context });
+    Sentry.captureException(e, context ? { extra: context } : undefined);
   } else {
     console.error('[error]', e, context);
   }

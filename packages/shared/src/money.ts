@@ -11,7 +11,7 @@ export function dollarsToCents(dollars: number): Cents {
   if (!Number.isFinite(dollars)) {
     throw new Error(`dollarsToCents: not finite — ${dollars}`);
   }
-  const c = Math.round(dollars * 100);
+  const c = Math.round(Number((dollars * 100).toFixed(8)));
   if (Math.abs(c) > MAX_SAFE_CENTS) {
     throw new Error(`dollarsToCents: out of safe integer range — ${dollars}`);
   }
