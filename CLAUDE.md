@@ -56,12 +56,17 @@ If anything in code conflicts with the PRD, the PRD wins. If you need to deviate
 - Docs: PRD, ARCHITECTURE, DECISIONS, legacy audit, README.
 
 ### Blocked / waiting on Brodie
-- Supabase project + access keys (region `ap-southeast-2`).
-- Vercel team / project name (Brodie wires after first GitHub push).
-- Apple Developer Team ID + Sign in with Apple service ID + provisioning profile.
-- API credentials: Anthropic, Basiq sandbox, Up Bank PAT, Stripe test mode, APNS p8.
-- `ENCRYPTION_KEY` (32 random bytes) for token encryption at rest.
-- GitHub repo creation + first push.
+- Vercel project setup + env-var paste-in (Brodie wires after first GitHub push).
+- Confirm which `.p8` is SiwA vs APNS in Apple Developer Console (assumed `5YB8D2KP64` = SiwA, `999LW5Y9JW` = APNS).
+- Stripe credentials (deferred — testers free during beta).
+- Sentry DSN (deferred).
+- Up Bank webhook URL once Vercel is live (registers webhook from Settings → Connect Up).
+
+### Live infrastructure
+- GitHub: https://github.com/brodie-mcgee/leftovers (private).
+- Supabase project: `yohzkldhcitfbxwrlieu` (`ap-southeast-2`) — schema applied, RLS active, 14 tables, 41 policies, 27 system categories, 569 system merchant rules, `headroom_for_user` + `internal_transfer_pair` functions live.
+- Sign in with Apple: enabled in Supabase (Service ID `com.brodiemcgee.leftovers.signin` + bundle ID `com.brodiemcgee.leftovers`; JWT signed with key `5YB8D2KP64`, valid ~6 months from 2026-05-01).
+- APNS: key `999LW5Y9JW` recorded in `.env.local` for when push is wired.
 
 ## Test data
 The user's real Up + Amex transaction history is the canonical fixture. End-of-April 2026 balances are documented in PRD §appendix and serve as the integration test target.
