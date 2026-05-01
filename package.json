@@ -1,0 +1,33 @@
+{
+  "name": "leftovers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Leftovers — iOS personal finance app for salaried Australians",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.10.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./apps/web\" --filter \"./packages/*\" build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "categoriser:eval": "pnpm --filter @leftovers/categoriser eval",
+    "db:gen-types": "supabase gen types typescript --local > packages/shared/src/database.types.ts",
+    "db:reset": "supabase db reset",
+    "db:diff": "supabase db diff",
+    "db:push": "supabase db push"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.10",
+    "eslint": "^9.19.0",
+    "@typescript-eslint/eslint-plugin": "^8.21.0",
+    "@typescript-eslint/parser": "^8.21.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

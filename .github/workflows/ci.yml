@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ts:
+    name: TypeScript build, lint, test, eval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Categoriser eval (≥95% accuracy)
+        run: pnpm categoriser:eval
+
+      - name: Build web
+        run: pnpm --filter @leftovers/web build
+
+  supabase-tests:
+    name: Supabase RLS isolation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase
+        run: supabase start
+      - name: Apply migrations
+        run: supabase db reset --local
+      - name: Run RLS isolation tests
+        run: |
+          docker exec supabase_db_leftovers psql -U postgres -d postgres -f /workspace/supabase/tests/rls_isolation.test.sql
+
+  ios:
+    name: iOS build
+    runs-on: macos-14
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve Swift packages
+        run: |
+          cd apps/ios
+          swift package resolve
+      - name: Test core library
+        run: |
+          cd apps/ios
+          swift test --parallel

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm --filter @leftovers/web build",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "outputDirectory": "apps/web/.next",
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/sync",
+      "schedule": "0 */6 * * *"
+    }
+  ],
+  "functions": {
+    "apps/web/src/app/api/sync/route.ts": { "maxDuration": 60 },
+    "apps/web/src/app/api/connect/up/route.ts": { "maxDuration": 60 },
+    "apps/web/src/app/api/cron/sync/route.ts": { "maxDuration": 300 }
+  }
+}
