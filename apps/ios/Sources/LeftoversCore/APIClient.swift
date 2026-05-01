@@ -20,11 +20,12 @@ public actor APIClient {
     }
 
     private func currentToken() async throws -> String {
-        let session = try await SupabaseProvider.shared.client.auth.session
-        guard let session else {
+        do {
+            let session = try await SupabaseProvider.shared.client.auth.session
+            return session.accessToken
+        } catch {
             throw NSError(domain: "Leftovers.APIClient", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not signed in"])
         }
-        return session.accessToken
     }
 
     public func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {

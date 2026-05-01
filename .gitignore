@@ -48,3 +48,4 @@ apps/ios/Local.xcconfig
 # Sentry
 .sentryclirc
 .vercel
+apps/ios/Leftovers.xcodeproj/

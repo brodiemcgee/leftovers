@@ -18,14 +18,11 @@ public final class SessionStore: ObservableObject {
 
     public func bootstrap() async {
         do {
-            if let session = try await client.auth.session {
-                accessToken = session.accessToken
-                userId = session.user.id.uuidString
-                let onboarded = try await isOnboarded(userId: session.user.id.uuidString)
-                state = onboarded ? .signedIn : .needsOnboarding
-            } else {
-                state = .signedOut
-            }
+            let session = try await client.auth.session
+            accessToken = session.accessToken
+            userId = session.user.id.uuidString
+            let onboarded = try await isOnboarded(userId: session.user.id.uuidString)
+            state = onboarded ? .signedIn : .needsOnboarding
         } catch {
             state = .signedOut
         }

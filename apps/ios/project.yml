@@ -1,0 +1,44 @@
+name: Leftovers
+options:
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+configs:
+  Debug: debug
+  Release: release
+
+configFiles:
+  Debug: Leftovers.xcconfig
+  Release: Leftovers.xcconfig
+
+packages:
+  LeftoversCore:
+    path: .
+
+targets:
+  Leftovers:
+    type: application
+    platform: iOS
+    sources:
+      - path: Leftovers
+        excludes:
+          - "Info.plist"
+          - "Leftovers.entitlements"
+    dependencies:
+      - package: LeftoversCore
+        product: LeftoversCore
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Leftovers/Leftovers.entitlements
+        INFOPLIST_FILE: Leftovers/Info.plist
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: NO
+    attributes:
+      SystemCapabilities:
+        com.apple.SignInWithApple:
+          enabled: 1
+        com.apple.Push:
+          enabled: 1
