@@ -36,6 +36,7 @@ supabase/.temp/
 apps/ios/build/
 apps/ios/DerivedData/
 apps/ios/.build/
+apps/ios/Local.xcconfig
 *.xcuserstate
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
@@ -46,3 +47,4 @@ apps/ios/.build/
 
 # Sentry
 .sentryclirc
+.vercel
