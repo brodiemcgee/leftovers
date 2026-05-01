@@ -3,6 +3,7 @@ import LeftoversCore
 
 struct PayCycleEditor: View {
     @StateObject private var viewModel = PayCycleEditorViewModel()
+    @Environment(\.dismiss) private var dismiss
     var body: some View {
         Form {
             Section("Payer") { TextField("Employer name", text: $viewModel.payerName) }
@@ -14,9 +15,20 @@ struct PayCycleEditor: View {
                 }
                 DatePicker("Anchor date", selection: $viewModel.anchorDate, displayedComponents: .date)
                 TextField("Amount estimate", text: $viewModel.amountString)
-                    .keyboardType(.numberPad)
+                    .keyboardType(.decimalPad)
             }
-            Section { Button("Save") { Task { await viewModel.save() } } }
+            if let err = viewModel.error {
+                Section { Text(err).foregroundStyle(.red).font(.footnote) }
+            }
+            Section {
+                Button("Save") {
+                    Task {
+                        await viewModel.save()
+                        if viewModel.error == nil { dismiss() }
+                    }
+                }
+                .disabled(viewModel.payerName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
         }
         .navigationTitle("Pay cycle")
         .task { await viewModel.load() }
@@ -25,19 +37,34 @@ struct PayCycleEditor: View {
 
 struct FixedObligationEditor: View {
     @StateObject private var viewModel = FixedObligationEditorViewModel()
+    @Environment(\.dismiss) private var dismiss
     var body: some View {
         Form {
             Section("Bill") {
                 TextField("Name", text: $viewModel.name)
-                TextField("Amount (dollars)", text: $viewModel.amountString).keyboardType(.numberPad)
+                TextField("Amount (dollars)", text: $viewModel.amountString)
+                    .keyboardType(.decimalPad)
             }
             Section("Cadence") {
                 Picker("Cadence", selection: $viewModel.cadence) {
                     ForEach(Cadence.allCases, id: \.self) { Text($0.displayName).tag($0) }
                 }
-                Stepper("Day of month: \(viewModel.dayOfMonth)", value: $viewModel.dayOfMonth, in: 1...31)
+                if viewModel.cadence == .monthly {
+                    Stepper("Day of month: \(viewModel.dayOfMonth)", value: $viewModel.dayOfMonth, in: 1...31)
+                }
             }
-            Section { Button("Save") { Task { await viewModel.save() } } }
+            if let err = viewModel.error {
+                Section { Text(err).foregroundStyle(.red).font(.footnote) }
+            }
+            Section {
+                Button("Save") {
+                    Task {
+                        await viewModel.save()
+                        if viewModel.error == nil { dismiss() }
+                    }
+                }
+                .disabled(viewModel.name.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
         }
         .navigationTitle("Fixed bill")
     }
