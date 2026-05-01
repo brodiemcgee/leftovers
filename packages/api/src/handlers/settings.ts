@@ -129,6 +129,26 @@ export async function handlePayCycleUpsert(req: Request): Promise<Response> {
       return jsonResponse({ ok: true, id: body.id });
     }
 
+    // No id — if a row already matches (user_id, payer_name, cadence) update it
+    // instead of inserting a duplicate. Onboarding confirm-pay can land here
+    // repeatedly if the user navigates back-and-forth.
+    const existingPay = await supabase
+      .from('pay_cycles')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('payer_name', body.payerName)
+      .eq('cadence', body.cadence)
+      .maybeSingle();
+    if (existingPay.data?.id) {
+      const { error } = await supabase
+        .from('pay_cycles')
+        .update(row)
+        .eq('id', existingPay.data.id)
+        .eq('user_id', userId);
+      if (error) throw error;
+      return jsonResponse({ ok: true, id: existingPay.data.id });
+    }
+
     const { data, error } = await supabase.from('pay_cycles').insert(row).select('id').single();
     if (error) throw error;
 
@@ -197,6 +217,28 @@ export async function handleFixedObligationUpsert(req: Request): Promise<Respons
       if (error) throw error;
       return jsonResponse({ ok: true, id: body.id });
     }
+
+    // No id — match an existing row by (user_id, name, cadence, amount) so
+    // onboarding's confirm-fixed step doesn't insert duplicates when called
+    // repeatedly.
+    const existingObl = await supabase
+      .from('fixed_obligations')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('name', body.name)
+      .eq('cadence', body.cadence)
+      .eq('amount_cents', body.amountCents)
+      .maybeSingle();
+    if (existingObl.data?.id) {
+      const { error } = await supabase
+        .from('fixed_obligations')
+        .update(row)
+        .eq('id', existingObl.data.id)
+        .eq('user_id', userId);
+      if (error) throw error;
+      return jsonResponse({ ok: true, id: existingObl.data.id });
+    }
+
     const { data, error } = await supabase.from('fixed_obligations').insert(row).select('id').single();
     if (error) throw error;
     return jsonResponse({ ok: true, id: data.id });

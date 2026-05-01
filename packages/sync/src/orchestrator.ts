@@ -323,20 +323,63 @@ async function refreshFixedObligationDates(
   supabase: LeftoversSupabaseClient,
   userId: string,
 ): Promise<void> {
-  const { data } = await supabase
+  type FoRow = {
+    id: string;
+    name: string | null;
+    cadence: string;
+    expected_day_of_month: number | null;
+    next_expected_date: string | null;
+  };
+  const { data } = (await supabase
     .from('fixed_obligations')
-    .select('id, expected_day_of_month, cadence, next_expected_date')
+    .select('id, name, expected_day_of_month, cadence, next_expected_date')
     .eq('user_id', userId)
-    .eq('is_active', true);
+    .eq('is_active', true)) as { data: FoRow[] | null };
   if (!data) return;
 
   const today = new Date();
+  const todayDate = today.toISOString().slice(0, 10);
+
   for (const f of data) {
+    let next: string | null = null;
+
     if (f.cadence === 'monthly' && f.expected_day_of_month) {
-      const next = nextMonthDay(today, f.expected_day_of_month);
+      next = nextMonthDay(today, f.expected_day_of_month);
+    } else if (f.cadence === 'weekly' || f.cadence === 'fortnightly' || f.cadence === 'four_weekly') {
+      const days = f.cadence === 'weekly' ? 7 : f.cadence === 'fortnightly' ? 14 : 28;
+      const last = await mostRecentMatchingTransaction(supabase, userId, f.name);
+      const base = last ? new Date(last) : today;
+      const nextDate = new Date(base);
+      do {
+        nextDate.setUTCDate(nextDate.getUTCDate() + days);
+      } while (nextDate.toISOString().slice(0, 10) < todayDate);
+      next = nextDate.toISOString().slice(0, 10);
+    }
+
+    if (next && next !== f.next_expected_date) {
       await supabase.from('fixed_obligations').update({ next_expected_date: next }).eq('id', f.id);
     }
   }
+}
+
+async function mostRecentMatchingTransaction(
+  supabase: LeftoversSupabaseClient,
+  userId: string,
+  obligationName: string | null,
+): Promise<string | null> {
+  if (!obligationName) return null;
+  const key = obligationName.split(/\s+/)[0]?.toUpperCase();
+  if (!key || key.length < 3) return null;
+  const { data } = await supabase
+    .from('transactions')
+    .select('posted_at')
+    .eq('user_id', userId)
+    .lt('amount_cents', 0)
+    .ilike('merchant_normalised', `%${key}%`)
+    .order('posted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.posted_at ?? null;
 }
 
 function nextMonthDay(today: Date, day: number): string {
