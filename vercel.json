@@ -9,10 +9,5 @@
       "path": "/api/cron/sync",
       "schedule": "0 6 * * *"
     }
-  ],
-  "functions": {
-    "apps/web/src/app/api/sync/route.ts": { "maxDuration": 60 },
-    "apps/web/src/app/api/connect/up/route.ts": { "maxDuration": 60 },
-    "apps/web/src/app/api/cron/sync/route.ts": { "maxDuration": 300 }
-  }
+  ]
 }
