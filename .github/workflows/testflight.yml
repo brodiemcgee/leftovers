@@ -81,24 +81,29 @@ jobs:
           BUNDLE_ID: com.brodiemcgee.leftovers
         run: |
           set -euo pipefail
-          KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
+          python3 -m pip install --quiet --disable-pip-version-check PyJWT cryptography
+          export KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
 
-          b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+          JWT=$(python3 -c "
+          import jwt, time, os
+          print(jwt.encode(
+              {
+                  'iss': os.environ['ASC_API_ISSUER_ID'],
+                  'iat': int(time.time()),
+                  'exp': int(time.time()) + 1200,
+                  'aud': 'appstoreconnect-v1',
+              },
+              open(os.environ['KEY_PATH']).read(),
+              algorithm='ES256',
+              headers={'kid': os.environ['ASC_API_KEY_ID']},
+          ))
+          ")
 
-          NOW=$(date +%s)
-          EXP=$((NOW + 1200))
-          HEADER=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "$ASC_API_KEY_ID" | b64url)
-          PAYLOAD=$(printf '{"iss":"%s","iat":%d,"exp":%d,"aud":"appstoreconnect-v1"}' "$ASC_API_ISSUER_ID" "$NOW" "$EXP" | b64url)
-          SIG=$(printf '%s.%s' "$HEADER" "$PAYLOAD" | openssl dgst -sha256 -sign "$KEY_PATH" -binary | b64url)
-          JWT="$HEADER.$PAYLOAD.$SIG"
-
-          # Find app numeric id by bundle id
           APP_ID=$(curl -fsSL -H "Authorization: Bearer $JWT" \
             "https://api.appstoreconnect.apple.com/v1/apps?filter%5BbundleId%5D=$BUNDLE_ID" \
             | jq -r '.data[0].id')
           echo "App ID: $APP_ID"
 
-          # Highest build number across ALL versions for this app
           LATEST=$(curl -fsSL -H "Authorization: Bearer $JWT" \
             "https://api.appstoreconnect.apple.com/v1/builds?filter%5Bapp%5D=$APP_ID&sort=-uploadedDate&limit=20" \
             | jq -r '[.data[].attributes.version | tonumber] | max // 0')
