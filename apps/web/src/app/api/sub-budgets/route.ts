@@ -1,5 +1,5 @@
 import { handleSubBudgetsList, handleSubBudgetsUpsert } from '@leftovers/api';
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 export function GET(req: Request): Promise<Response> {
   return handleSubBudgetsList(req);
 }

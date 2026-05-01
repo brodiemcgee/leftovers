@@ -1,5 +1,5 @@
 import { handleTransactionDetail, handleTransactionUpdate } from '@leftovers/api';
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 interface Params {
   params: Promise<{ id: string }>;

@@ -7,6 +7,13 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@leftovers/api', '@leftovers/shared', '@leftovers/sync', '@leftovers/categoriser'],
+  webpack: (config) => {
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      '.js': ['.ts', '.tsx', '.js'],
+    };
+    return config;
+  },
   async headers() {
     return [
       {
