@@ -21,6 +21,11 @@ struct SettingsView: View {
                     }
                     NavigationLink("Connect Up Bank") { ConnectUpView() }
                     NavigationLink("Connect another bank (Basiq)") { ConnectBasiqView() }
+                    if let alias = s.user.emailAlias {
+                        NavigationLink("Connect Amex via email alerts") {
+                            AmexEmailSetupView(alias: alias)
+                        }
+                    }
                 }
 
                 Section("Pay cycle") {

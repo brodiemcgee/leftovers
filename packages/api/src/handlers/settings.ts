@@ -13,7 +13,7 @@ export async function handleSettingsGet(req: Request): Promise<Response> {
     const { userId, supabase } = await authenticate(req);
     const user = await supabase
       .from('users')
-      .select('id, email, display_name, timezone, llm_categorisation_enabled, preferences, subscription_status, subscription_current_period_end')
+      .select('id, email, display_name, timezone, llm_categorisation_enabled, preferences, subscription_status, subscription_current_period_end, email_alias')
       .eq('id', userId)
       .single();
     if (user.error) throw user.error;

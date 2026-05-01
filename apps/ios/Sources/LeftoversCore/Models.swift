@@ -183,6 +183,7 @@ public struct UserRow: Codable, Equatable {
     public let displayName: String?
     public let timezone: String
     public let llmCategorisationEnabled: Bool
+    public let emailAlias: String?
 }
 
 public struct QuickAddResponse: Codable, Equatable {

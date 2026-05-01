@@ -48,6 +48,7 @@ export interface Database {
           email: string | null;
           display_name: string | null;
           basiq_user_id: string | null;
+          email_alias: string;
           timezone: string;
           pay_cycle_type: PayCadenceEnum | null;
           pay_cycle_anchor_date: string | null;

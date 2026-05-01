@@ -14,5 +14,6 @@ export * from './handlers/connect-basiq.js';
 export * from './handlers/category-correction.js';
 export * from './handlers/stripe-webhook.js';
 export * from './handlers/onboarding-detect.js';
+export * from './handlers/email-amex.js';
 export * from './lib/auth.js';
 export * from './lib/sentry.js';
