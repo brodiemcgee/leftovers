@@ -146,6 +146,14 @@ jobs:
 
       - name: Embed entitlements (ad-hoc sign)
         run: |
+          # Sign the widget extension first so its entitlements (App Group)
+          # land before the parent .app bundle is signed.
+          WIDGET_APPEX="$RUNNER_TEMP/Leftovers.xcarchive/Products/Applications/Leftovers.app/PlugIns/LeftoversWidget.appex"
+          if [ -d "$WIDGET_APPEX" ]; then
+            codesign --force --sign "-" \
+              --entitlements LeftoversWidget/LeftoversWidget.entitlements \
+              "$WIDGET_APPEX"
+          fi
           codesign --force --sign "-" \
             --entitlements Leftovers/Leftovers.entitlements \
             "$RUNNER_TEMP/Leftovers.xcarchive/Products/Applications/Leftovers.app"

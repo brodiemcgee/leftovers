@@ -84,8 +84,15 @@ if [ ! -d "$ARCHIVE_PATH" ]; then
   exit 1
 fi
 
-# 5. Embed entitlements (ad-hoc sign so aps-environment / SiwA are present)
+# 5. Embed entitlements (ad-hoc sign so aps-environment / SiwA / App Group
+#    are present). The widget extension carries its own entitlements file
+#    and must be signed BEFORE the enclosing .app bundle.
 echo "==> Embed entitlements"
+WIDGET_APPEX="$ARCHIVE_PATH/Products/Applications/Leftovers.app/PlugIns/LeftoversWidget.appex"
+WIDGET_ENTS="$SCRIPT_DIR/LeftoversWidget/LeftoversWidget.entitlements"
+if [ -d "$WIDGET_APPEX" ] && [ -f "$WIDGET_ENTS" ]; then
+  codesign --force --sign "-" --entitlements "$WIDGET_ENTS" "$WIDGET_APPEX"
+fi
 codesign --force --sign "-" \
   --entitlements "$ENTITLEMENTS" \
   "$ARCHIVE_PATH/Products/Applications/Leftovers.app"
