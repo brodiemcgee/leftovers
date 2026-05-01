@@ -14,7 +14,8 @@ public actor APIClient {
         dec.dateDecodingStrategy = .iso8601
         decoder = dec
         let enc = JSONEncoder()
-        enc.keyEncodingStrategy = .convertToSnakeCase
+        // Server schemas (Zod) expect camelCase keys. The decoder still uses
+        // .convertFromSnakeCase because Postgres rows come through nested as snake_case.
         enc.dateEncodingStrategy = .iso8601
         encoder = enc
     }
