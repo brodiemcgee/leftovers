@@ -5,6 +5,13 @@ interface RunArgs {
   userId: string;
   connectionId: string;
   source: 'up' | 'basiq';
+  /**
+   * Force-disable the LLM categorisation layer for this run. Used by the
+   * connect-time inline sync to stay under Vercel's 60s function ceiling —
+   * each Anthropic call adds ~1s and a fresh Up account easily has 1000+
+   * uncategorised transactions. The daily cron picks them up later with LLM.
+   */
+  disableLlm?: boolean;
 }
 
 /**
@@ -31,7 +38,7 @@ export async function runConnectionSync(args: RunArgs): Promise<SyncResult & { c
     .eq('id', args.userId)
     .single();
 
-  const llmEnabled = userRow?.llm_categorisation_enabled ?? true;
+  const llmEnabled = !args.disableLlm && (userRow?.llm_categorisation_enabled ?? true);
 
   if (args.source === 'up') {
     const up = createUpClient(accessToken);

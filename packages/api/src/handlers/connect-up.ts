@@ -46,7 +46,14 @@ export async function handleConnectUp(req: Request): Promise<Response> {
       .single();
     if (error) throw error;
 
-    const result = await runConnectionSync({ userId, connectionId: conn.id, source: 'up' });
+    // Inline sync without LLM categorisation to stay under the 60s function
+    // ceiling on Vercel Hobby. The daily cron re-categorises with LLM later.
+    const result = await runConnectionSync({
+      userId,
+      connectionId: conn.id,
+      source: 'up',
+      disableLlm: true,
+    });
     return jsonResponse({ ok: true, connectionId: conn.id, firstSync: result });
   } catch (e) {
     if (e instanceof UnauthorizedError) return errorResponse(401, e.message);
