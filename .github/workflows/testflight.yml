@@ -81,10 +81,12 @@ jobs:
           BUNDLE_ID: com.brodiemcgee.leftovers
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet --disable-pip-version-check PyJWT cryptography
+          python3 -m venv "$RUNNER_TEMP/jwtvenv"
+          "$RUNNER_TEMP/jwtvenv/bin/pip" install --quiet --disable-pip-version-check PyJWT cryptography
+          PY="$RUNNER_TEMP/jwtvenv/bin/python"
           export KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8"
 
-          JWT=$(python3 -c "
+          JWT=$("$PY" -c "
           import jwt, time, os
           print(jwt.encode(
               {
