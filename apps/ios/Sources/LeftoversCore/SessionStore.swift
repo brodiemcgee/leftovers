@@ -68,22 +68,18 @@ public final class SessionStore: ObservableObject {
 
     private func isOnboarded(userId: String) async throws -> Bool {
         // A user is "onboarded" once they have at least one active connection AND a pay cycle.
-        let connRes: PostgrestResponse<[CountRow]> = try await client.database
+        let connRes = try await client
             .from("connections")
-            .select("count: count(*)", head: false)
+            .select("id", head: true, count: .exact)
             .eq("user_id", value: userId)
             .eq("status", value: "active")
             .execute()
-        let payRes: PostgrestResponse<[CountRow]> = try await client.database
+        let payRes = try await client
             .from("pay_cycles")
-            .select("count: count(*)", head: false)
+            .select("id", head: true, count: .exact)
             .eq("user_id", value: userId)
             .eq("is_active", value: true)
             .execute()
-        return (connRes.value.first?.count ?? 0) > 0 && (payRes.value.first?.count ?? 0) > 0
+        return (connRes.count ?? 0) > 0 && (payRes.count ?? 0) > 0
     }
-}
-
-private struct CountRow: Decodable {
-    let count: Int
 }
