@@ -111,6 +111,17 @@ jobs:
             | jq -r '[.data[].attributes.version | tonumber] | max // 0')
           NEXT=$((LATEST + 1))
           echo "Latest uploaded build: $LATEST → using $NEXT"
+
+          # CFBundleShortVersionString must be ≥ the highest preReleaseVersion in ASC.
+          # Use what's committed in Info.plist if it's already higher; otherwise lift it.
+          LATEST_MARKETING=$(curl -fsSL -H "Authorization: Bearer $JWT" \
+            "https://api.appstoreconnect.apple.com/v1/preReleaseVersions?filter%5Bapp%5D=$APP_ID&sort=-version&limit=1" \
+            | jq -r '.data[0].attributes.version // "1.0"')
+          COMMITTED=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Leftovers/Info.plist)
+          # Pick the higher of committed and ASC's latest (string version compare)
+          MARKETING=$(printf '%s\n%s\n' "$COMMITTED" "$LATEST_MARKETING" | sort -V | tail -n1)
+          echo "Marketing version: committed=$COMMITTED asc-latest=$LATEST_MARKETING → using $MARKETING"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING" Leftovers/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEXT" Leftovers/Info.plist
 
       - name: Generate Xcode project
