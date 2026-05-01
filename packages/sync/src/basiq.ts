@@ -13,17 +13,41 @@ import type { AccountTypeEnum } from '@leftovers/shared/database';
 
 const BASIQ_API_BASE = 'https://au-api.basiq.io';
 
+export interface BasiqUserAttrs {
+  email?: string | null;
+  mobile?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+}
+
 export interface BasiqClient {
   serverToken(): Promise<string>;
+  /** Create a Basiq user (one per Leftovers user). Returns the Basiq user id. */
+  createUser(attrs: BasiqUserAttrs): Promise<string>;
+  /** Issue a CLIENT_ACCESS token scoped to a single Basiq user. */
+  clientAccessToken(basiqUserId: string): Promise<string>;
+  /**
+   * Build the hosted-consent URL the user opens to link a bank.
+   * Returns the URL plus the client token used for the session.
+   */
+  buildConsentUrl(basiqUserId: string, opts?: { redirectUri?: string }): Promise<{ url: string; token: string }>;
+  /** List the connections (linked institutions) attached to a Basiq user. */
+  listConnections(basiqUserId: string): Promise<BasiqConnectionRow[]>;
   listAccounts(basiqUserId: string): Promise<NormalisedAccount[]>;
   listTransactionsSince(basiqUserId: string, sinceIso: string): Promise<NormalisedTransaction[]>;
-  createConsentSession(basiqUserId: string): Promise<{ url: string; sessionId: string }>;
+}
+
+export interface BasiqConnectionRow {
+  id: string;
+  status: string;
+  institutionId: string;
+  institutionName: string;
 }
 
 export function createBasiqClient(apiKey: string): BasiqClient {
   let cachedToken: { value: string; expiresAt: number } | null = null;
-  async function token(): Promise<string> {
-    if (cachedToken && cachedToken.expiresAt > Date.now() + 30_000) return cachedToken.value;
+
+  async function fetchToken(form: string): Promise<{ access_token: string; expires_in: number }> {
     const res = await fetch(`${BASIQ_API_BASE}/token`, {
       method: 'POST',
       headers: {
@@ -31,15 +55,21 @@ export function createBasiqClient(apiKey: string): BasiqClient {
         'basiq-version': '3.0',
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: 'scope=SERVER_ACCESS',
+      body: form,
     });
     if (!res.ok) throw new UpstreamApiError('basiq', res.status, await res.text());
-    const json = (await res.json()) as { access_token: string; expires_in: number };
+    return (await res.json()) as { access_token: string; expires_in: number };
+  }
+
+  async function serverToken(): Promise<string> {
+    if (cachedToken && cachedToken.expiresAt > Date.now() + 30_000) return cachedToken.value;
+    const json = await fetchToken('scope=SERVER_ACCESS');
     cachedToken = { value: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
     return cachedToken.value;
   }
+
   async function api<T>(path: string, init?: RequestInit): Promise<T> {
-    const t = await token();
+    const t = await serverToken();
     const res = await fetch(`${BASIQ_API_BASE}${path}`, {
       ...init,
       headers: {
@@ -50,16 +80,61 @@ export function createBasiqClient(apiKey: string): BasiqClient {
         ...init?.headers,
       },
     });
-    if (!res.ok) throw new UpstreamApiError('basiq', res.status, (await res.text()).slice(0, 500));
+    if (!res.ok) {
+      const body = (await res.text()).slice(0, 500);
+      throw new UpstreamApiError('basiq', res.status, body);
+    }
     return res.json() as Promise<T>;
   }
 
   return {
-    serverToken: token,
+    serverToken,
+
+    async createUser(attrs) {
+      const body: Record<string, string> = {};
+      if (attrs.email) body['email'] = attrs.email;
+      if (attrs.mobile) body['mobile'] = attrs.mobile;
+      if (attrs.firstName) body['firstName'] = attrs.firstName;
+      if (attrs.lastName) body['lastName'] = attrs.lastName;
+      const res = await api<{ id: string }>(`/users`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      return res.id;
+    },
+
+    async clientAccessToken(basiqUserId) {
+      const json = await fetchToken(`scope=CLIENT_ACCESS&userId=${encodeURIComponent(basiqUserId)}`);
+      return json.access_token;
+    },
+
+    async buildConsentUrl(basiqUserId, opts) {
+      const token = await this.clientAccessToken(basiqUserId);
+      const params = new URLSearchParams({ token });
+      if (opts?.redirectUri) params.set('action', 'connect');
+      return {
+        token,
+        url: `https://consent.basiq.io/home?${params.toString()}`,
+      };
+    },
+
+    async listConnections(basiqUserId) {
+      const res = await api<{ data: { id: string; status: string; institution: { id: string; name: string } }[] }>(
+        `/users/${basiqUserId}/connections`,
+      );
+      return res.data.map((c) => ({
+        id: c.id,
+        status: c.status,
+        institutionId: c.institution.id,
+        institutionName: c.institution.name,
+      }));
+    },
+
     async listAccounts(basiqUserId) {
       const res = await api<BasiqAccountList>(`/users/${basiqUserId}/accounts`);
       return res.data.map(toAccount);
     },
+
     async listTransactionsSince(basiqUserId, sinceIso) {
       const out: NormalisedTransaction[] = [];
       let next: string | null = `/users/${basiqUserId}/transactions?filter=transaction.postDate.gt('${sinceIso}')&limit=500`;
@@ -69,13 +144,6 @@ export function createBasiqClient(apiKey: string): BasiqClient {
         next = page.links?.next ? page.links.next.replace(BASIQ_API_BASE, '') : null;
       }
       return out;
-    },
-    async createConsentSession(basiqUserId) {
-      const res = await api<{ id: string; data?: { url?: string } }>(
-        `/users/${basiqUserId}/consents`,
-        { method: 'POST', body: JSON.stringify({ source: 'leftovers-app' }) },
-      );
-      return { url: res.data?.url ?? '', sessionId: res.id };
     },
   };
 }

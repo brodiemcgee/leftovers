@@ -47,6 +47,7 @@ export interface Database {
           apple_user_id: string | null;
           email: string | null;
           display_name: string | null;
+          basiq_user_id: string | null;
           timezone: string;
           pay_cycle_type: PayCadenceEnum | null;
           pay_cycle_anchor_date: string | null;

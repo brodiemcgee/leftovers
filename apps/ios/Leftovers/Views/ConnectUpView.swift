@@ -39,20 +39,67 @@ struct ConnectUpView: View {
     }
 }
 
+import SafariServices
+
 struct ConnectBasiqView: View {
     @StateObject private var viewModel = ConnectBasiqViewModel()
+    @State private var showingConsent = false
+
     var body: some View {
         Form {
             Section {
-                Text("We'll open Basiq's secure consent flow to connect a bank. Pick the institution there.")
+                Text("We'll open a secure consent flow to link your bank. Pick the institution there, then return to this screen and tap \"Done\".")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Button("Start Basiq consent") { Task { await viewModel.start() } }
             }
+
+            Section {
+                if viewModel.consentUrl == nil {
+                    Button {
+                        Task {
+                            await viewModel.start()
+                            if viewModel.consentUrl != nil { showingConsent = true }
+                        }
+                    } label: {
+                        if viewModel.isConnecting { ProgressView() } else { Text("Open Basiq consent") }
+                    }
+                    .disabled(viewModel.isConnecting)
+                } else {
+                    Button("Reopen consent") { showingConsent = true }
+                    Button("I've finished — link my accounts") {
+                        Task { await viewModel.finalise() }
+                    }
+                    .disabled(viewModel.isConnecting)
+                }
+            }
+
+            if viewModel.connectionsAttached > 0 {
+                Section {
+                    Label(
+                        "Linked \(viewModel.connectionsAttached) account\(viewModel.connectionsAttached == 1 ? "" : "s")",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                    .foregroundStyle(.green)
+                }
+            }
+
             if let error = viewModel.error {
                 Section { Text(error).font(.footnote).foregroundStyle(.red) }
             }
         }
         .navigationTitle("Connect another bank")
+        .sheet(isPresented: $showingConsent) {
+            if let url = viewModel.consentUrl {
+                SafariSheet(url: url)
+            }
+        }
     }
+}
+
+private struct SafariSheet: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }
