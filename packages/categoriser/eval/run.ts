@@ -29,10 +29,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesPath = join(__dirname, 'fixtures.json');
 const { fixtures } = JSON.parse(readFileSync(fixturesPath, 'utf-8')) as { fixtures: Fixture[] };
 
-// TODO: restore to 0.95 once rule engine is upgraded with word-boundary matching
-// and priority-by-specificity. Current 0.85 reflects known substring-leakage misses
-// (e.g. "OPTUS MOBILE" matches MOBIL fuel rule) — see docs/DECISIONS.md.
-const ACCURACY_THRESHOLD = 0.85;
+const ACCURACY_THRESHOLD = 0.95;
 
 interface Failure {
   merchant: string;
