@@ -43,6 +43,7 @@ public struct HomeSnapshot: Codable, Equatable {
     public let asOf: Date
     public let headroom: HeadroomNumbers
     public let burnRateCents: Int64
+    public let spentTodayCents: Int64?
     public let subBudgets: [SubBudgetProgress]
     public let upcoming: [UpcomingItem]
     public let pace: Pace

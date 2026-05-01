@@ -29,6 +29,7 @@ targets:
     dependencies:
       - package: LeftoversCore
         product: LeftoversCore
+      - target: LeftoversWidget
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
@@ -41,4 +42,31 @@ targets:
         com.apple.SignInWithApple:
           enabled: 1
         com.apple.Push:
+          enabled: 1
+        com.apple.ApplicationGroups.iOS:
+          enabled: 1
+
+  LeftoversWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: LeftoversWidget
+        excludes:
+          - "Info.plist"
+          - "LeftoversWidget.entitlements"
+      # Re-use HeadroomSnapshot from the main app so the widget's read path
+      # uses the exact same struct the app's write path uses.
+      - path: Sources/LeftoversCore/HeadroomSnapshot.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.brodiemcgee.leftovers.widget
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: LeftoversWidget/LeftoversWidget.entitlements
+        INFOPLIST_FILE: LeftoversWidget/Info.plist
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: NO
+    attributes:
+      SystemCapabilities:
+        com.apple.ApplicationGroups.iOS:
           enabled: 1

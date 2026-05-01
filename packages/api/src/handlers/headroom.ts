@@ -15,6 +15,29 @@ export async function handleHeadroom(req: Request): Promise<Response> {
 
     const burn = await supabase.rpc('current_month_burn_rate', { p_user_id: userId }).single();
 
+    // Already-spent discretionary today, in the user's local-day window. We
+    // approximate Australia/Melbourne for now (matches the SQL functions);
+    // a per-user tz lookup would be cleaner once we expose one. The widget's
+    // "left today" mode subtracts this from the daily allowance.
+    const todayStart = new Date(asOf);
+    todayStart.setUTCHours(0, 0, 0, 0);
+    // Midnight Melbourne is 14:00 UTC the previous day (AEST UTC+10).
+    todayStart.setUTCHours(14);
+    todayStart.setUTCDate(todayStart.getUTCDate() - 1);
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    const today = await supabase
+      .from('transactions')
+      .select('amount_cents')
+      .eq('user_id', userId)
+      .eq('classification', 'discretionary')
+      .lt('amount_cents', 0)
+      .gte('posted_at', todayStart.toISOString())
+      .lt('posted_at', todayEnd.toISOString());
+    const spentTodayCents = (today.data ?? []).reduce(
+      (sum, r) => sum + Math.max(0, -(r.amount_cents ?? 0)),
+      0,
+    );
+
     const subBudgets = await supabase
       .from('sub_budget_progress')
       .select('id, name, target_cents, spent_cents, is_catchall, display_order')
@@ -37,6 +60,7 @@ export async function handleHeadroom(req: Request): Promise<Response> {
       asOf,
       headroom: data,
       burnRateCents: burn.data ?? 0,
+      spentTodayCents,
       subBudgets: subBudgets.data,
       upcoming: upcoming.data,
       pace: derivePace(data, burn.data ?? 0),
