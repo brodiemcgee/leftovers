@@ -54,9 +54,11 @@ targets:
         excludes:
           - "Info.plist"
           - "LeftoversWidget.entitlements"
-      # Re-use HeadroomSnapshot from the main app so the widget's read path
-      # uses the exact same struct the app's write path uses.
+      # Re-use HeadroomSnapshot + SharedAuthStore from LeftoversCore so the
+      # widget's read path uses the same value types the app's write path
+      # uses. xcodegen drops them into both targets at build time.
       - path: Sources/LeftoversCore/HeadroomSnapshot.swift
+      - path: Sources/LeftoversCore/SharedAuthStore.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.brodiemcgee.leftovers.widget

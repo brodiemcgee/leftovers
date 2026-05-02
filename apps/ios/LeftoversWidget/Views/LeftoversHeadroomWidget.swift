@@ -40,16 +40,72 @@ struct HeadroomTimelineProvider: AppIntentTimelineProvider {
     }
 
     func timeline(for configuration: HeadroomConfigIntent, in context: Context) async -> Timeline<HeadroomEntry> {
+        // First: try to fetch fresh numbers ourselves using the auth token
+        // the main app put in the App Group. Falls through to the cached
+        // snapshot if the token's expired or the network is unreachable.
+        if let fresh = try? await fetchFresh() {
+            HeadroomSnapshotStore.write(fresh)
+        }
+
         let entry = HeadroomEntry(
             date: Date(),
             snapshot: HeadroomSnapshotStore.read(),
             mode: configuration.mode
         )
-        // Re-render every 30 minutes; the main app force-reloads the timeline
-        // whenever it refreshes /api/headroom so the user sees fresh numbers
-        // immediately after pulling-to-refresh in-app.
+        // Schedule the next render in 30 min. WidgetKit honours this best-
+        // effort within the system widget budget. The main app also calls
+        // WidgetCenter.reloadTimelines on every successful in-app refresh.
         let nextRefresh = Calendar.current.date(byAdding: .minute, value: 30, to: Date()) ?? Date()
         return Timeline(entries: [entry], policy: .after(nextRefresh))
+    }
+
+    private func fetchFresh() async throws -> HeadroomSnapshot? {
+        guard let auth = SharedAuthStore.read(), auth.isUsable else { return nil }
+        guard let url = URL(string: auth.apiBaseURL + "/api/headroom") else { return nil }
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(auth.accessToken)", forHTTPHeaderField: "Authorization")
+        req.timeoutInterval = 8
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+        return try? decodeHeadroomResponse(data)
+    }
+
+    private func decodeHeadroomResponse(_ data: Data) throws -> HeadroomSnapshot? {
+        struct HeadroomNumbers: Decodable {
+            let period_end: String
+            let forecast_income_cents: Int64
+            let forecast_fixed_cents: Int64
+            let spent_discretionary_cents: Int64
+            let headroom_cents: Int64
+            let days_remaining: Int
+            let daily_burn_cents: Int64
+        }
+        struct Response: Decodable {
+            let asOf: String
+            let headroom: HeadroomNumbers
+            let spentTodayCents: Int64?
+        }
+        let decoder = JSONDecoder()
+        let r = try decoder.decode(Response.self, from: data)
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let asOf = isoFormatter.date(from: r.asOf)
+            ?? ISO8601DateFormatter().date(from: r.asOf)
+            ?? Date()
+        let periodEnd = isoFormatter.date(from: r.headroom.period_end)
+            ?? ISO8601DateFormatter().date(from: r.headroom.period_end)
+            ?? Date()
+        return HeadroomSnapshot(
+            asOf: asOf,
+            headroomCents: r.headroom.headroom_cents,
+            spentDiscretionaryCents: r.headroom.spent_discretionary_cents,
+            spentTodayCents: r.spentTodayCents ?? 0,
+            dailyBurnCents: r.headroom.daily_burn_cents,
+            daysRemaining: r.headroom.days_remaining,
+            forecastIncomeCents: r.headroom.forecast_income_cents,
+            forecastFixedCents: r.headroom.forecast_fixed_cents,
+            periodEnd: periodEnd
+        )
     }
 }
 

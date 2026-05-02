@@ -21,11 +21,26 @@ public final class SessionStore: ObservableObject {
             let session = try await client.auth.session
             accessToken = session.accessToken
             userId = session.user.id.uuidString
+            persistSharedAuth(session)
             let onboarded = try await isOnboarded(userId: session.user.id.uuidString)
             state = onboarded ? .signedIn : .needsOnboarding
         } catch {
             state = .signedOut
         }
+    }
+
+    /// Mirror the current Supabase session into the App Group so the widget
+    /// extension and the BGAppRefreshTask handler can call /api/headroom on
+    /// their own. Stores the access token, its expiry, and the API base URL.
+    private func persistSharedAuth(_ session: Session) {
+        let expires = Date(timeIntervalSince1970: TimeInterval(session.expiresAt))
+        SharedAuthStore.write(
+            SharedAuth(
+                accessToken: session.accessToken,
+                expiresAt: expires,
+                apiBaseURL: AppEnvironment.apiBaseURL.absoluteString
+            )
+        )
     }
 
     public func signInWithApple(from result: Result<ASAuthorization, Error>) async throws {
@@ -46,6 +61,7 @@ public final class SessionStore: ObservableObject {
             )
             accessToken = session.accessToken
             userId = session.user.id.uuidString
+            persistSharedAuth(session)
             let onboarded = try await isOnboarded(userId: session.user.id.uuidString)
             state = onboarded ? .signedIn : .needsOnboarding
         }
@@ -59,6 +75,7 @@ public final class SessionStore: ObservableObject {
         }
         accessToken = nil
         userId = nil
+        SharedAuthStore.clear()
         state = .signedOut
     }
 

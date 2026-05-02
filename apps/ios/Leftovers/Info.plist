@@ -4,6 +4,10 @@
 <dict>
 	<key>API_BASE_URL</key>
 	<string>$(API_BASE_URL)</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.brodiemcgee.leftovers.refresh</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en_AU</string>
 	<key>CFBundleDisplayName</key>
@@ -32,6 +36,11 @@
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_URL</key>
 	<string>$(SUPABASE_URL)</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
