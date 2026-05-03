@@ -142,7 +142,7 @@ async function ensureAmexAccount(
         balance_cents: 0,
         is_active: true,
       },
-      { onConflict: 'source,source_account_id' },
+      { onConflict: 'user_id,source,source_account_id' },
     )
     .select('id')
     .single();
