@@ -25,6 +25,7 @@ export async function handleTransactionsList(req: Request): Promise<Response> {
       )
       .eq('user_id', userId)
       .order('posted_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(q.limit);
 
     if (q.cursor) query = query.lt('posted_at', q.cursor);
