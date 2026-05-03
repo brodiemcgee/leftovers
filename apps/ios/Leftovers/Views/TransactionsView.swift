@@ -37,11 +37,17 @@ private struct TransactionRow: View {
                 Text(tx.merchantDisplay)
                     .font(.subheadline)
                     .lineLimit(1)
-                if let category = tx.classificationLabel {
-                    Text(category)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    if let category = tx.classificationLabel {
+                        Text(category)
+                    }
+                    if let account = tx.accountDisplay {
+                        if tx.classificationLabel != nil { Text("·") }
+                        Text(account).lineLimit(1)
+                    }
                 }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
             Spacer()
             Text(Money.format(cents: tx.amountCents))

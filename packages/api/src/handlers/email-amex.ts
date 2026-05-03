@@ -1,7 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { errorResponse, jsonResponse } from '../lib/auth.js';
 import { captureError } from '../lib/sentry.js';
-import { createServiceClient } from '@leftovers/shared';
+import { createServiceClient, normaliseMerchant } from '@leftovers/shared';
+import { classifyByRules, type SystemRule, type UserRule } from '@leftovers/categoriser';
 import { parseAmexAlert } from '../lib/amex-email.js';
 
 /**
@@ -82,6 +83,13 @@ export async function handleEmailAmexWebhook(req: Request): Promise<Response> {
 
     const accountId = await ensureAmexAccount(supabase, userId);
 
+    // Run the new transaction through our rule engine right now so the
+    // headroom forecast picks it up immediately. Default to discretionary
+    // for unmatched merchants (credit-card spend without a more specific
+    // signal is treated as discretionary).
+    const merchantNorm = normaliseMerchant(parsed.merchantRaw);
+    const classified = await classifyAmexLine(supabase, userId, parsed.merchantRaw, merchantNorm);
+
     const { error } = await supabase.from('transactions').upsert(
       {
         user_id: userId,
@@ -91,19 +99,124 @@ export async function handleEmailAmexWebhook(req: Request): Promise<Response> {
         amount_cents: -parsed.amountCents, // outflow
         currency: 'AUD',
         merchant_raw: parsed.merchantRaw,
-        merchant_normalised: null,
+        merchant_normalised: merchantNorm,
         description: 'Amex alert',
         location: null,
+        classification: classified.classification,
+        category_id: classified.categoryId,
+        confidence_score: classified.confidence,
+        classified_by: classified.classifiedBy,
+        classification_reasoning: classified.reasoning,
         raw_payload: { source: 'resend-inbound', subject: data.subject ?? null },
       },
       { onConflict: 'account_id,source_transaction_id', ignoreDuplicates: false },
     );
     if (error) throw error;
-    return jsonResponse({ ok: true, syntheticId: parsed.syntheticId });
+
+    // Credit-card balance reflects amounts owed: spending pushes balance more
+    // negative. We sum all Amex outflows so re-running the same alert (which
+    // upserts on syntheticId) doesn't double-count.
+    await refreshAmexAccountBalance(supabase, userId, accountId);
+
+    return jsonResponse({ ok: true, syntheticId: parsed.syntheticId, classification: classified.classification });
   } catch (e) {
     captureError(e, { handler: 'email-amex' });
     return errorResponse(500, 'email ingest failed');
   }
+}
+
+interface ClassifiedAmex {
+  classification: string;
+  categoryId: string | null;
+  confidence: number;
+  classifiedBy: 'rule' | 'system' | 'user';
+  reasoning: string | null;
+}
+
+/** Apply the same rule engine the sync orchestrator uses, defaulting to
+ *  discretionary when no rule matches (credit-card spend with no other
+ *  signal is treated as discretionary). */
+async function classifyAmexLine(
+  supabase: ReturnType<typeof createServiceClient>,
+  userId: string,
+  merchantRaw: string,
+  merchantNorm: string,
+): Promise<ClassifiedAmex> {
+  const { data: rules } = await supabase
+    .from('categorisation_rules')
+    .select('user_id, merchant_pattern, pattern_type, classification, priority, category_id, categories(slug)')
+    .or(`user_id.is.null,user_id.eq.${userId}`)
+    .eq('is_active', true);
+  type Row = { user_id: string | null; merchant_pattern: string; pattern_type: 'substring' | 'regex'; classification: string; priority: number; categories: { slug: string } | null };
+  const ruleList: (SystemRule | UserRule)[] = ((rules ?? []) as Row[])
+    .filter((r): r is Row & { categories: { slug: string } } => r.categories !== null)
+    .map((r) => {
+      const base = {
+        pattern: r.merchant_pattern,
+        patternType: r.pattern_type,
+        categorySlug: r.categories.slug as SystemRule['categorySlug'],
+        classification: r.classification as SystemRule['classification'],
+        priority: r.priority,
+      };
+      return r.user_id ? { ...base, userId: r.user_id } : base;
+    });
+
+  const matched = classifyByRules(
+    {
+      id: '00000000-0000-0000-0000-000000000000',
+      userId,
+      merchantRaw,
+      merchantNormalised: merchantNorm,
+      amountCents: 0,
+      accountType: 'credit',
+      postedAt: new Date().toISOString(),
+    },
+    ruleList,
+  );
+
+  if (matched) {
+    const { data: cat } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('slug', matched.categorySlug)
+      .or(`user_id.is.null,user_id.eq.${userId}`)
+      .maybeSingle();
+    return {
+      classification: matched.classification,
+      categoryId: cat?.id ?? null,
+      confidence: matched.confidence,
+      classifiedBy: matched.classifiedBy === 'user' ? 'user' : 'rule',
+      reasoning: matched.reasoning ?? null,
+    };
+  }
+
+  // Default for unmatched Amex spend.
+  return {
+    classification: 'discretionary',
+    categoryId: null,
+    confidence: 0.5,
+    classifiedBy: 'system',
+    reasoning: 'Default for Amex email alert with no rule match',
+  };
+}
+
+/** Recompute the Amex account balance as the sum of every transaction on
+ *  it (negative for spend). Idempotent — re-runs converge on the same value. */
+async function refreshAmexAccountBalance(
+  supabase: ReturnType<typeof createServiceClient>,
+  userId: string,
+  accountId: string,
+): Promise<void> {
+  const { data } = await supabase
+    .from('transactions')
+    .select('amount_cents')
+    .eq('user_id', userId)
+    .eq('account_id', accountId);
+  const total = (data ?? []).reduce((sum, r) => sum + (r.amount_cents ?? 0), 0);
+  await supabase
+    .from('accounts')
+    .update({ balance_cents: total, balance_updated_at: new Date().toISOString() })
+    .eq('id', accountId);
 }
 
 async function ensureAmexAccount(

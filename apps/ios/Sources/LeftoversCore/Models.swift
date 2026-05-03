@@ -59,9 +59,16 @@ public struct TransactionListItem: Codable, Identifiable, Equatable {
     public let classification: Classification?
     public let categoryId: String?
     public let pairedTransactionId: String?
+    public let accounts: AccountStub?
 
     public var merchantDisplay: String { merchantNormalised ?? merchantRaw ?? description ?? "—" }
     public var classificationLabel: String? { classification?.displayName }
+    public var accountDisplay: String? { accounts?.displayName }
+}
+
+public struct AccountStub: Codable, Equatable {
+    public let displayName: String
+    public let accountType: String?
 }
 
 public enum Classification: String, Codable, CaseIterable, Equatable {

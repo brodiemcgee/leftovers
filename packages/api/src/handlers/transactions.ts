@@ -21,7 +21,7 @@ export async function handleTransactionsList(req: Request): Promise<Response> {
     let query = supabase
       .from('transactions')
       .select(
-        'id, posted_at, amount_cents, currency, merchant_raw, merchant_normalised, description, classification, category_id, classified_by, confidence_score, paired_transaction_id, account_id',
+        'id, posted_at, amount_cents, currency, merchant_raw, merchant_normalised, description, classification, category_id, classified_by, confidence_score, paired_transaction_id, account_id, accounts(display_name, account_type)',
       )
       .eq('user_id', userId)
       .order('posted_at', { ascending: false })
