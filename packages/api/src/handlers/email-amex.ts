@@ -82,6 +82,14 @@ export async function handleEmailAmexWebhook(req: Request): Promise<Response> {
     });
     if (!parsed) return jsonResponse({ ok: true, ignored: 'not parsable as amex' });
 
+    // Prefer the time Resend received the alert over Amex's stated body date.
+    // Amex's body date appears to be in US time (a day behind Australia for
+    // most of the day) which puts the spend in yesterday's daily-allowance
+    // bucket on the home screen + widget. The email itself lands within
+    // seconds of the swipe so received-time is what the user expects.
+    const eventReceivedAt = parseEventReceivedAt(event.created_at);
+    const postedAt = eventReceivedAt ?? parsed.postedAt;
+
     const accountId = await ensureAmexAccount(supabase, userId);
 
     // Run the new transaction through our rule engine right now so the
@@ -96,7 +104,7 @@ export async function handleEmailAmexWebhook(req: Request): Promise<Response> {
         user_id: userId,
         account_id: accountId,
         source_transaction_id: parsed.syntheticId,
-        posted_at: parsed.postedAt,
+        posted_at: postedAt,
         amount_cents: -parsed.amountCents, // outflow
         currency: 'AUD',
         merchant_raw: parsed.merchantRaw,
@@ -308,8 +316,17 @@ function timingSafeEqualString(a: string, b: string): boolean {
   return timingSafeEqual(ab, bb);
 }
 
+function parseEventReceivedAt(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 interface ResendInboundEvent {
   type: string;
+  /** Resend stamps this when the email lands. ISO 8601 string. */
+  created_at?: string;
   data?: {
     email_id?: string;
     from?: string | { email: string; name?: string };
