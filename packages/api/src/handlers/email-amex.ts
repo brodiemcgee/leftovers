@@ -148,19 +148,24 @@ async function classifyAmexLine(
     .select('user_id, merchant_pattern, pattern_type, classification, priority, category_id, categories(slug)')
     .or(`user_id.is.null,user_id.eq.${userId}`)
     .eq('is_active', true);
-  type Row = { user_id: string | null; merchant_pattern: string; pattern_type: 'substring' | 'regex'; classification: string; priority: number; categories: { slug: string } | null };
-  const ruleList: (SystemRule | UserRule)[] = ((rules ?? []) as Row[])
-    .filter((r): r is Row & { categories: { slug: string } } => r.categories !== null)
+  // Postgrest returns the foreign reference as either an object or an array
+  // depending on cardinality declaration; treat both. Walk via `unknown`
+  // because the Database typegen leaves it ambiguous.
+  type Row = { user_id: string | null; merchant_pattern: string; pattern_type: 'substring' | 'regex'; classification: string; priority: number; categories: { slug: string } | { slug: string }[] | null };
+  const ruleList: (SystemRule | UserRule)[] = ((rules ?? []) as unknown as Row[])
     .map((r) => {
+      const slug = Array.isArray(r.categories) ? r.categories[0]?.slug : r.categories?.slug;
+      if (!slug) return null;
       const base = {
         pattern: r.merchant_pattern,
         patternType: r.pattern_type,
-        categorySlug: r.categories.slug as SystemRule['categorySlug'],
+        categorySlug: slug as SystemRule['categorySlug'],
         classification: r.classification as SystemRule['classification'],
         priority: r.priority,
       };
       return r.user_id ? { ...base, userId: r.user_id } : base;
-    });
+    })
+    .filter((r): r is SystemRule | UserRule => r !== null);
 
   const matched = classifyByRules(
     {
