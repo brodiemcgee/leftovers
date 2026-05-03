@@ -36,8 +36,8 @@ export async function handleEmailAmexWebhook(req: Request): Promise<Response> {
     return errorResponse(400, 'bad json');
   }
 
-  if (event.type !== 'email.inbound.received') {
-    return jsonResponse({ ok: true, ignored: 'non-inbound event' });
+  if (event.type !== 'email.received' && event.type !== 'email.inbound.received') {
+    return jsonResponse({ ok: true, ignored: `non-inbound event: ${event.type}` });
   }
 
   const data = event.data;
