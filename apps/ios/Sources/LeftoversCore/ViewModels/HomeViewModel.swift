@@ -40,6 +40,7 @@ public final class HomeViewModel: ObservableObject {
             spentDiscretionaryCents: s.headroom.spentDiscretionaryCents,
             spentTodayCents: s.spentTodayCents ?? 0,
             dailyBurnCents: s.headroom.dailyBurnCents,
+            dailyAllowanceCents: s.dailyAllowanceCents ?? s.headroom.dailyBurnCents,
             daysRemaining: s.headroom.daysRemaining,
             forecastIncomeCents: s.headroom.forecastIncomeCents,
             forecastFixedCents: s.headroom.forecastFixedCents,

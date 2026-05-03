@@ -56,11 +56,24 @@ export async function handleHeadroom(req: Request): Promise<Response> {
       .limit(3);
     if (upcoming.error) throw upcoming.error;
 
+    // Daily envelope: the user's "fair share" of the period's discretionary
+    // budget per day, computed once per period (NOT redistributed when they
+    // overspend). Lets the Today widget show a per-day bucket the user can
+    // empty, with overspend flowing into negative space rather than
+    // silently shrinking tomorrow's allowance.
+    const periodStartMs = new Date(data.period_start).getTime();
+    const periodEndMs = new Date(data.period_end).getTime();
+    const totalDays = Math.max(1, Math.round((periodEndMs - periodStartMs) / (24 * 60 * 60 * 1000)));
+    const dailyAllowanceCents = Math.floor(
+      (data.forecast_income_cents - data.forecast_fixed_cents) / totalDays,
+    );
+
     return jsonResponse({
       asOf,
       headroom: data,
       burnRateCents: burn.data ?? 0,
       spentTodayCents,
+      dailyAllowanceCents,
       subBudgets: subBudgets.data,
       upcoming: upcoming.data,
       pace: derivePace(data, burn.data ?? 0),

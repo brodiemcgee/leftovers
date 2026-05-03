@@ -118,6 +118,7 @@ private func decodeBackgroundHeadroom(_ data: Data) throws -> HeadroomSnapshot? 
         let asOf: String
         let headroom: HeadroomNumbers
         let spentTodayCents: Int64?
+        let dailyAllowanceCents: Int64?
     }
     let decoder = JSONDecoder()
     let r = try decoder.decode(Response.self, from: data)
@@ -132,6 +133,7 @@ private func decodeBackgroundHeadroom(_ data: Data) throws -> HeadroomSnapshot? 
         spentDiscretionaryCents: r.headroom.spent_discretionary_cents,
         spentTodayCents: r.spentTodayCents ?? 0,
         dailyBurnCents: r.headroom.daily_burn_cents,
+        dailyAllowanceCents: r.dailyAllowanceCents ?? r.headroom.daily_burn_cents,
         daysRemaining: r.headroom.days_remaining,
         forecastIncomeCents: r.headroom.forecast_income_cents,
         forecastFixedCents: r.headroom.forecast_fixed_cents,

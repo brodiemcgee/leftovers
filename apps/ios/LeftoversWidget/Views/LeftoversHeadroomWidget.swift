@@ -84,6 +84,7 @@ struct HeadroomTimelineProvider: AppIntentTimelineProvider {
             let asOf: String
             let headroom: HeadroomNumbers
             let spentTodayCents: Int64?
+            let dailyAllowanceCents: Int64?
         }
         let decoder = JSONDecoder()
         let r = try decoder.decode(Response.self, from: data)
@@ -101,6 +102,7 @@ struct HeadroomTimelineProvider: AppIntentTimelineProvider {
             spentDiscretionaryCents: r.headroom.spent_discretionary_cents,
             spentTodayCents: r.spentTodayCents ?? 0,
             dailyBurnCents: r.headroom.daily_burn_cents,
+            dailyAllowanceCents: r.dailyAllowanceCents ?? r.headroom.daily_burn_cents,
             daysRemaining: r.headroom.days_remaining,
             forecastIncomeCents: r.headroom.forecast_income_cents,
             forecastFixedCents: r.headroom.forecast_fixed_cents,
@@ -260,7 +262,10 @@ private func subtitle(entry: HeadroomEntry) -> String {
     case .month:
         return "\(s.daysRemaining) days left · \(updated)"
     case .today:
-        return "Spent \(formatAud(s.spentTodayCents)) today · \(updated)"
+        if s.todayOverBy > 0 {
+            return "\(formatAud(s.todayOverBy)) over today · \(updated)"
+        }
+        return "Spent \(formatAud(s.spentTodayCents)) of \(formatAud(s.dailyAllowanceCents)) · \(updated)"
     case .dailyPace:
         return "\(s.daysRemaining) days left · \(updated)"
     }

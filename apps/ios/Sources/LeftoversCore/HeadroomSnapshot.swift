@@ -12,7 +12,15 @@ public struct HeadroomSnapshot: Codable, Equatable {
     public let headroomCents: Int64
     public let spentDiscretionaryCents: Int64
     public let spentTodayCents: Int64
+    /// Average daily spend pace going forward = headroom / daysRemaining.
+    /// Use for the "Daily pace" widget mode.
     public let dailyBurnCents: Int64
+    /// Per-day envelope = (forecast_income − forecast_fixed) ÷ days_in_month.
+    /// This is fixed for the whole period — it does NOT shrink as the user
+    /// spends. The "Today" widget mode uses (allowance − spentToday)
+    /// clamped to 0 so a single day's overspend doesn't silently re-pace
+    /// the rest of the month.
+    public let dailyAllowanceCents: Int64
     public let daysRemaining: Int
     public let forecastIncomeCents: Int64
     public let forecastFixedCents: Int64
@@ -24,6 +32,7 @@ public struct HeadroomSnapshot: Codable, Equatable {
         spentDiscretionaryCents: Int64,
         spentTodayCents: Int64,
         dailyBurnCents: Int64,
+        dailyAllowanceCents: Int64,
         daysRemaining: Int,
         forecastIncomeCents: Int64,
         forecastFixedCents: Int64,
@@ -34,16 +43,25 @@ public struct HeadroomSnapshot: Codable, Equatable {
         self.spentDiscretionaryCents = spentDiscretionaryCents
         self.spentTodayCents = spentTodayCents
         self.dailyBurnCents = dailyBurnCents
+        self.dailyAllowanceCents = dailyAllowanceCents
         self.daysRemaining = daysRemaining
         self.forecastIncomeCents = forecastIncomeCents
         self.forecastFixedCents = forecastFixedCents
         self.periodEnd = periodEnd
     }
 
-    /// What the user can still spend today and stay on pace. Negative means
-    /// today's discretionary spend has already exceeded the daily allowance.
+    /// What's left in TODAY's daily envelope after today's spend. Clamped
+    /// at 0 — once today's bucket is empty, additional spend reduces the
+    /// monthly headroom (visible in the Month mode) but doesn't go more
+    /// negative on the per-day display.
     public var leftTodayCents: Int64 {
-        dailyBurnCents - spentTodayCents
+        max(0, dailyAllowanceCents - spentTodayCents)
+    }
+
+    /// True if the user has spent more than today's envelope. Useful for
+    /// rendering the Today widget in red.
+    public var todayOverBy: Int64 {
+        max(0, spentTodayCents - dailyAllowanceCents)
     }
 }
 
