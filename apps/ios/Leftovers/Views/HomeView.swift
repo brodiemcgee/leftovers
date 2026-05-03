@@ -171,23 +171,34 @@ private struct SpendProgressBar: View {
         case .month:
             let total = snapshot.headroom.headroomCents + snapshot.headroom.spentDiscretionaryCents
             let pct = total > 0 ? Double(snapshot.headroom.spentDiscretionaryCents) / Double(total) : 0
+            let elapsed = elapsedFraction(start: snapshot.headroom.periodStart, end: snapshot.headroom.periodEnd)
             VStack(alignment: .leading, spacing: 6) {
-                ProgressView(value: max(0, min(1, pct))).tint(.accentColor)
+                MarkedProgressBar(
+                    progress: max(0, min(1, pct)),
+                    markerAt: elapsed,
+                    overBudget: pct > 1
+                )
                 HStack {
                     Text("Spent \(Money.format(cents: snapshot.headroom.spentDiscretionaryCents, sign: .never))")
                     Spacer()
+                    Text("Pace: \(Money.format(cents: Int64(Double(total) * elapsed), sign: .never))")
+                    Spacer()
                     Text("of \(Money.format(cents: total, sign: .never))")
                 }
-                .font(.footnote)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             }
         case .today:
             let allowance = snapshot.dailyAllowanceCents ?? snapshot.headroom.dailyBurnCents
             let spentToday = snapshot.spentTodayCents ?? 0
             let pct = allowance > 0 ? Double(spentToday) / Double(allowance) : 0
+            let dayElapsed = fractionOfDayElapsed()
             VStack(alignment: .leading, spacing: 6) {
-                ProgressView(value: max(0, min(1, pct)))
-                    .tint(spentToday > allowance ? .red : .accentColor)
+                MarkedProgressBar(
+                    progress: max(0, min(1, pct)),
+                    markerAt: dayElapsed,
+                    overBudget: spentToday > allowance
+                )
                 HStack {
                     Text("Spent \(Money.format(cents: spentToday, sign: .never))")
                     Spacer()
@@ -197,6 +208,51 @@ private struct SpendProgressBar: View {
                 .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func elapsedFraction(start: Date, end: Date) -> Double {
+        let total = end.timeIntervalSince(start)
+        guard total > 0 else { return 0 }
+        let now = Date().timeIntervalSince(start)
+        return max(0, min(1, now / total))
+    }
+
+    private func fractionOfDayElapsed() -> Double {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Australia/Melbourne") ?? .current
+        let now = Date()
+        let startOfDay = cal.startOfDay(for: now)
+        let elapsed = now.timeIntervalSince(startOfDay)
+        return max(0, min(1, elapsed / 86400))
+    }
+}
+
+/// Custom progress bar with a vertical "should be here" marker. SwiftUI's
+/// ProgressView doesn't expose a marker overlay, so we draw it by hand.
+private struct MarkedProgressBar: View {
+    let progress: Double
+    let markerAt: Double
+    let overBudget: Bool
+
+    var body: some View {
+        GeometryReader { geo in
+            let trackHeight: CGFloat = 8
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.secondary.opacity(0.18))
+                    .frame(height: trackHeight)
+                Capsule()
+                    .fill(overBudget ? Color.red : Color.accentColor)
+                    .frame(width: geo.size.width * CGFloat(progress), height: trackHeight)
+                Rectangle()
+                    .fill(Color.primary.opacity(0.6))
+                    .frame(width: 2, height: trackHeight + 8)
+                    .offset(x: geo.size.width * CGFloat(markerAt) - 1, y: 0)
+                    .accessibilityLabel("On-pace marker")
+            }
+            .frame(maxHeight: .infinity, alignment: .center)
+        }
+        .frame(height: 16)
     }
 }
 
