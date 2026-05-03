@@ -210,14 +210,16 @@ interface ResendFullEmail {
 
 /**
  * Webhook payload only carries metadata (subject, from, to, email_id) — the
- * actual body is on the email object. Fetch by id from Resend's API.
+ * actual body is on the inbound email object. Fetch by id from Resend's
+ * receiving API. (`/emails/receiving/{id}`, distinct from `/emails/{id}`
+ * which only exposes outbound.)
  */
 async function fetchResendEmail(emailId: string): Promise<ResendFullEmail | null> {
   if (!emailId) return null;
   const apiKey = process.env['RESEND_API_KEY'];
   if (!apiKey) return null;
   try {
-    const res = await fetch(`https://api.resend.com/emails/${emailId}`, {
+    const res = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (!res.ok) return null;
