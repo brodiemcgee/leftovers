@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { errorResponse, jsonResponse } from '../lib/auth.js';
 import { captureError } from '../lib/sentry.js';
 import { createServiceClient, normaliseMerchant } from '@leftovers/shared';
+import type { ClassificationEnum, ClassifiedByEnum } from '@leftovers/shared/database';
 import { classifyByRules, type SystemRule, type UserRule } from '@leftovers/categoriser';
 import { parseAmexAlert } from '../lib/amex-email.js';
 
@@ -126,10 +127,10 @@ export async function handleEmailAmexWebhook(req: Request): Promise<Response> {
 }
 
 interface ClassifiedAmex {
-  classification: string;
+  classification: ClassificationEnum;
   categoryId: string | null;
   confidence: number;
-  classifiedBy: 'rule' | 'system' | 'user';
+  classifiedBy: ClassifiedByEnum;
   reasoning: string | null;
 }
 
@@ -182,10 +183,10 @@ async function classifyAmexLine(
       .or(`user_id.is.null,user_id.eq.${userId}`)
       .maybeSingle();
     return {
-      classification: matched.classification,
+      classification: matched.classification as ClassificationEnum,
       categoryId: cat?.id ?? null,
       confidence: matched.confidence,
-      classifiedBy: matched.classifiedBy === 'user' ? 'user' : 'rule',
+      classifiedBy: (matched.classifiedBy === 'user' ? 'user' : 'rule') as ClassifiedByEnum,
       reasoning: matched.reasoning ?? null,
     };
   }
