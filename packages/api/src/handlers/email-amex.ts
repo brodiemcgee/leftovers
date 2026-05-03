@@ -66,12 +66,17 @@ export async function handleEmailAmexWebhook(req: Request): Promise<Response> {
     if (!userRes.data) return jsonResponse({ ok: true, ignored: 'unknown alias' });
     const userId = userRes.data.id;
 
-    const fromEmail = typeof data.from === 'object' ? data.from.email : data.from;
+    // Resend's webhook payload only carries email metadata, not the body —
+    // we have to fetch the full email by id to get the html/text content.
+    const fullEmail = await fetchResendEmail(data.email_id ?? '');
+    if (!fullEmail) return jsonResponse({ ok: true, ignored: 'fetch full email failed' });
+
+    const fromEmail = typeof fullEmail.from === 'object' ? fullEmail.from.email : fullEmail.from;
     const parsed = parseAmexAlert({
       from: fromEmail ?? '',
-      subject: data.subject ?? '',
-      html: data.html ?? '',
-      text: data.text ?? '',
+      subject: fullEmail.subject ?? '',
+      html: fullEmail.html ?? '',
+      text: fullEmail.text ?? '',
     });
     if (!parsed) return jsonResponse({ ok: true, ignored: 'not parsable as amex' });
 
@@ -187,10 +192,37 @@ function timingSafeEqualString(a: string, b: string): boolean {
 interface ResendInboundEvent {
   type: string;
   data?: {
+    email_id?: string;
     from?: string | { email: string; name?: string };
     to?: (string | { email: string; name?: string })[];
     subject?: string;
     text?: string;
     html?: string;
   };
+}
+
+interface ResendFullEmail {
+  from?: string | { email: string; name?: string };
+  subject?: string;
+  text?: string;
+  html?: string;
+}
+
+/**
+ * Webhook payload only carries metadata (subject, from, to, email_id) — the
+ * actual body is on the email object. Fetch by id from Resend's API.
+ */
+async function fetchResendEmail(emailId: string): Promise<ResendFullEmail | null> {
+  if (!emailId) return null;
+  const apiKey = process.env['RESEND_API_KEY'];
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(`https://api.resend.com/emails/${emailId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as ResendFullEmail;
+  } catch {
+    return null;
+  }
 }
