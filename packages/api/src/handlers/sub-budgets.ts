@@ -8,18 +8,118 @@ const UpsertBody = z.object({
   targetCents: z.number().int().nonnegative(),
   categorySlug: z.string().optional(),
   displayOrder: z.number().int().default(0),
+  /** % of headroom to allocate. Mutually exclusive with a fixed target. */
+  percentage: z.number().min(0).max(100).optional(),
+  /** Maximum the envelope can reach regardless of percentage. */
+  capCents: z.number().int().nonnegative().optional(),
+  /** Receive overflow from capped envelopes proportional to percentage. */
+  receivesOverflow: z.boolean().default(false),
 });
+
+interface SubBudgetRow {
+  id: string;
+  name: string;
+  target_cents: number;
+  spent_cents: number;
+  is_catchall: boolean;
+  display_order: number | null;
+  category_id: string | null;
+  percentage: number | null;
+  cap_cents: number | null;
+  receives_overflow: boolean | null;
+}
+
+/**
+ * Compute the live target for each envelope given the current month's
+ * discretionary headroom (income − fixed). For percentage envelopes the
+ * target = min(headroom × pct, cap). Surplus from capped envelopes flows
+ * proportionally into envelopes flagged receives_overflow. The catch-all
+ * picks up whatever's left so the total always sums to headroom exactly.
+ */
+export function applyDynamicAllocation(
+  rows: SubBudgetRow[],
+  headroomDiscretionaryCents: number,
+): SubBudgetRow[] {
+  const out = rows.map((r) => ({ ...r }));
+  const nonCatchall = out.filter((r) => !r.is_catchall);
+
+  // Step 1: each envelope's pre-overflow allocation.
+  let surplusCents = 0;
+  const cappedTargets = new Map<string, number>();
+  for (const r of nonCatchall) {
+    if (r.percentage != null) {
+      const raw = Math.round(headroomDiscretionaryCents * (r.percentage / 100));
+      const capped = r.cap_cents != null ? Math.min(raw, r.cap_cents) : raw;
+      cappedTargets.set(r.id, Math.max(0, capped));
+      const overflowed = r.cap_cents != null ? Math.max(0, raw - r.cap_cents) : 0;
+      surplusCents += overflowed;
+    } else {
+      cappedTargets.set(r.id, r.target_cents);
+    }
+  }
+
+  // Step 2: distribute surplus proportional to percentage among recipients.
+  const recipients = nonCatchall.filter((r) => r.receives_overflow);
+  const totalRecipientPct = recipients.reduce(
+    (s, r) => s + (r.percentage ?? 0),
+    0,
+  );
+  if (surplusCents > 0 && totalRecipientPct > 0) {
+    let remaining = surplusCents;
+    for (let i = 0; i < recipients.length; i++) {
+      const r = recipients[i]!;
+      const isLast = i === recipients.length - 1;
+      const share = isLast
+        ? remaining
+        : Math.round(surplusCents * ((r.percentage ?? 0) / totalRecipientPct));
+      const current = cappedTargets.get(r.id) ?? 0;
+      cappedTargets.set(r.id, current + share);
+      remaining -= share;
+    }
+  }
+
+  // Step 3: catch-all soaks up the rest.
+  const allocatedNonCatchall = nonCatchall.reduce(
+    (s, r) => s + (cappedTargets.get(r.id) ?? 0),
+    0,
+  );
+  const catchallTarget = Math.max(0, headroomDiscretionaryCents - allocatedNonCatchall);
+
+  // Apply.
+  for (const r of out) {
+    if (r.is_catchall) {
+      r.target_cents = catchallTarget;
+    } else {
+      r.target_cents = cappedTargets.get(r.id) ?? r.target_cents;
+    }
+  }
+  return out;
+}
 
 export async function handleSubBudgetsList(req: Request): Promise<Response> {
   try {
     const { userId, supabase } = await authenticate(req);
     const { data, error } = await supabase
       .from('sub_budget_progress')
-      .select('id, name, target_cents, spent_cents, is_catchall, display_order')
+      .select(
+        'id, name, target_cents, spent_cents, is_catchall, display_order, category_id, percentage, cap_cents, receives_overflow',
+      )
       .eq('user_id', userId)
       .order('display_order');
     if (error) throw error;
-    return jsonResponse({ subBudgets: data });
+
+    // Compute today's discretionary headroom (income − fixed obligations,
+    // ignoring spent-so-far) so envelopes that scale with headroom adjust
+    // dynamically. Falls back to the static target_cents if the RPC fails.
+    const headroom = await supabase
+      .rpc('headroom_for_user', { p_user_id: userId })
+      .single();
+    type HRow = { forecast_income_cents: number; forecast_fixed_cents: number };
+    const hr = (headroom.data as HRow | null);
+    const discretionaryCents = hr ? hr.forecast_income_cents - hr.forecast_fixed_cents : 0;
+    const computed = applyDynamicAllocation((data ?? []) as SubBudgetRow[], discretionaryCents);
+
+    return jsonResponse({ subBudgets: computed });
   } catch (e) {
     if (e instanceof UnauthorizedError) return errorResponse(401, e.message);
     captureError(e, { handler: 'sub-budgets:list' });
@@ -44,15 +144,20 @@ export async function handleSubBudgetsUpsert(req: Request): Promise<Response> {
       categoryId = cat.id;
     }
 
+    const baseRow = {
+      name: body.name,
+      target_cents: body.targetCents,
+      category_id: categoryId,
+      display_order: body.displayOrder,
+      percentage: body.percentage ?? null,
+      cap_cents: body.capCents ?? null,
+      receives_overflow: body.receivesOverflow,
+    };
+
     if (body.id) {
       const { error } = await supabase
         .from('sub_budgets')
-        .update({
-          name: body.name,
-          target_cents: body.targetCents,
-          category_id: categoryId,
-          display_order: body.displayOrder,
-        })
+        .update(baseRow)
         .eq('id', body.id)
         .eq('user_id', userId);
       if (error) throw error;
@@ -61,13 +166,7 @@ export async function handleSubBudgetsUpsert(req: Request): Promise<Response> {
 
     const { data, error } = await supabase
       .from('sub_budgets')
-      .insert({
-        user_id: userId,
-        name: body.name,
-        target_cents: body.targetCents,
-        category_id: categoryId,
-        display_order: body.displayOrder,
-      })
+      .insert({ user_id: userId, ...baseRow })
       .select('id')
       .single();
     if (error) throw error;

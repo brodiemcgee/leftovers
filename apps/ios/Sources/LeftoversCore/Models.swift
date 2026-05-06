@@ -21,6 +21,10 @@ public struct SubBudgetProgress: Codable, Identifiable, Equatable {
     public let spentCents: Int64
     public let isCatchall: Bool
     public let displayOrder: Int
+    public let categoryId: String?
+    public let percentage: Double?
+    public let capCents: Int64?
+    public let receivesOverflow: Bool?
 }
 
 public struct UpcomingItem: Codable, Identifiable, Equatable {

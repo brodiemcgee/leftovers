@@ -95,10 +95,41 @@ private struct SubBudgetEditor: View {
                 TextField("e.g. Eating out", text: $viewModel.name)
                     .textInputAutocapitalization(.words)
             }
-            Section("Monthly target") {
-                TextField("Amount in dollars", text: $viewModel.targetString)
-                    .keyboardType(.decimalPad)
+
+            Section {
+                Picker("How to set the target", selection: $viewModel.allocation) {
+                    ForEach(SubBudgetAllocation.allCases) { a in
+                        Text(a.label).tag(a)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                switch viewModel.allocation {
+                case .fixed:
+                    TextField("Monthly target ($)", text: $viewModel.targetString)
+                        .keyboardType(.decimalPad)
+                case .percentage:
+                    HStack {
+                        TextField("Percent of headroom", text: $viewModel.percentageString)
+                            .keyboardType(.decimalPad)
+                        Text("%").foregroundStyle(.secondary)
+                    }
+                    TextField("Cap ($, optional)", text: $viewModel.capString)
+                        .keyboardType(.decimalPad)
+                    Toggle("Receives overflow when essentials hit cap", isOn: $viewModel.receivesOverflow)
+                        .font(.subheadline)
+                }
+            } header: {
+                Text("Allocation")
+            } footer: {
+                if viewModel.allocation == .percentage {
+                    Text("Envelope target = headroom × percent, capped at the dollar amount above. Overflow envelopes share leftover money proportional to their percentage.")
+                        .font(.caption)
+                } else {
+                    Text("")
+                }
             }
+
             Section("Category") {
                 Picker("Category", selection: $viewModel.categorySlug) {
                     Text("(catch-all — anything not budgeted)").tag(Optional<String>.none)
@@ -107,9 +138,11 @@ private struct SubBudgetEditor: View {
                     }
                 }
             }
+
             if let err = viewModel.error {
                 Section { Text(err).foregroundStyle(.red).font(.footnote) }
             }
+
             Section {
                 Button("Save") {
                     Task {

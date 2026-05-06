@@ -1,5 +1,6 @@
 import { authenticate, errorResponse, jsonResponse, UnauthorizedError } from '../lib/auth.js';
 import { captureError } from '../lib/sentry.js';
+import { applyDynamicAllocation } from './sub-budgets.js';
 
 export async function handleHeadroom(req: Request): Promise<Response> {
   try {
@@ -42,10 +43,19 @@ export async function handleHeadroom(req: Request): Promise<Response> {
 
     const subBudgets = await supabase
       .from('sub_budget_progress')
-      .select('id, name, target_cents, spent_cents, is_catchall, display_order')
+      .select(
+        'id, name, target_cents, spent_cents, is_catchall, display_order, category_id, percentage, cap_cents, receives_overflow',
+      )
       .eq('user_id', userId)
       .order('display_order');
     if (subBudgets.error) throw subBudgets.error;
+    // Reuse the same dynamic allocator the /api/sub-budgets list uses so
+    // the home-screen card and the management list always agree.
+    const discretionaryCents = data.forecast_income_cents - data.forecast_fixed_cents;
+    const subBudgetRows = applyDynamicAllocation(
+      (subBudgets.data ?? []) as never,
+      discretionaryCents,
+    );
 
     const upcoming = await supabase
       .from('fixed_obligations')
@@ -76,7 +86,7 @@ export async function handleHeadroom(req: Request): Promise<Response> {
       burnRateCents: burn.data ?? 0,
       spentTodayCents,
       dailyAllowanceCents,
-      subBudgets: subBudgets.data,
+      subBudgets: subBudgetRows,
       upcoming: upcoming.data,
       pace: derivePace(data, burn.data ?? 0),
     });
