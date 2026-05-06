@@ -37,7 +37,11 @@ struct HomeView: View {
                     PacePill(state: snapshot.pace.state, reason: snapshot.pace.reason)
                     SpendProgressBar(snapshot: snapshot, scope: scope)
                     SubBudgetsCard(items: snapshot.subBudgets)
-                    UpcomingCard(items: snapshot.upcoming)
+                    if scope == .today {
+                        TodayTransactionsCard()
+                    } else {
+                        UpcomingCard(items: snapshot.upcoming)
+                    }
                     if stale {
                         Text("Showing last-known balances. Pull to refresh.")
                             .font(.footnote)
@@ -309,5 +313,62 @@ private struct UpcomingCard: View {
         }
         .padding(16)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+/// Today's transactions, shown on the home screen when the user is in
+/// "Today" scope so the day's full picture is visible: hero number plus
+/// every individual hit on the budget.
+private struct TodayTransactionsCard: View {
+    @StateObject private var viewModel = TransactionsViewModel()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Today").font(.headline)
+            let items = todayItems(from: viewModel.transactions)
+            if items.isEmpty {
+                Text("No transactions yet today.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(items) { tx in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tx.merchantDisplay)
+                                .font(.subheadline)
+                                .lineLimit(1)
+                            HStack(spacing: 6) {
+                                if let cls = tx.classificationLabel {
+                                    Text(cls)
+                                }
+                                if let acc = tx.accountDisplay {
+                                    if tx.classificationLabel != nil { Text("·") }
+                                    Text(acc).lineLimit(1)
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(Money.format(cents: tx.amountCents))
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(tx.amountCents >= 0 ? .green : .primary)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .task { await viewModel.load() }
+    }
+
+    /// Filter the transactions list to those that fall on today's local
+    /// date in Australia/Melbourne so the home card matches the day window
+    /// the headroom calculation uses.
+    private func todayItems(from list: [TransactionListItem]) -> [TransactionListItem] {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Australia/Melbourne") ?? .current
+        let now = Date()
+        return list.filter { cal.isDate($0.postedAt, inSameDayAs: now) }
     }
 }

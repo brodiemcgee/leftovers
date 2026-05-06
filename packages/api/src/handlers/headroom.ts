@@ -15,16 +15,18 @@ export async function handleHeadroom(req: Request): Promise<Response> {
 
     const burn = await supabase.rpc('current_month_burn_rate', { p_user_id: userId }).single();
 
-    // Already-spent discretionary today, in the user's local-day window. We
-    // approximate Australia/Melbourne for now (matches the SQL functions);
-    // a per-user tz lookup would be cleaner once we expose one. The widget's
-    // "left today" mode subtracts this from the daily allowance.
-    const todayStart = new Date(asOf);
-    todayStart.setUTCHours(0, 0, 0, 0);
-    // Midnight Melbourne is 14:00 UTC the previous day (AEST UTC+10).
-    todayStart.setUTCHours(14);
-    todayStart.setUTCDate(todayStart.getUTCDate() - 1);
-    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    // Already-spent discretionary today, in the user's local-day window.
+    // Computed from the user's stored timezone (defaults to Australia/Melbourne)
+    // via Intl.DateTimeFormat so daylight-saving boundaries are handled
+    // correctly — the previous hand-rolled UTC-offset math was off by a day
+    // when the local clock had ticked past midnight but UTC hadn't.
+    const userPrefs = await supabase
+      .from('users')
+      .select('timezone')
+      .eq('id', userId)
+      .maybeSingle();
+    const userTz = userPrefs.data?.timezone ?? 'Australia/Melbourne';
+    const { startUtc: todayStart, endUtc: todayEnd } = localDayBounds(new Date(asOf), userTz);
     const today = await supabase
       .from('transactions')
       .select('amount_cents')
@@ -83,6 +85,52 @@ export async function handleHeadroom(req: Request): Promise<Response> {
     captureError(e, { handler: 'headroom' });
     return errorResponse(500, 'headroom failed');
   }
+}
+
+/**
+ * Returns the UTC-anchored start/end of the calendar day that contains `at`
+ * in the given IANA time zone. Handles daylight-saving by querying the zone
+ * offset for the candidate moment instead of assuming a fixed +10 hours.
+ */
+function localDayBounds(at: Date, timeZone: string): { startUtc: Date; endUtc: Date } {
+  // Step 1: get the local Y/M/D the moment falls in.
+  const dateStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(at);
+
+  // Step 2: figure out the zone's UTC offset at midnight of that local date.
+  // We pick a candidate moment (UTC midnight on dateStr) and ask Intl what
+  // local clock it shows — the difference is the offset.
+  const candidate = new Date(`${dateStr}T00:00:00Z`);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(candidate);
+  const lookup: Record<string, string> = {};
+  for (const p of parts) lookup[p.type] = p.value;
+  const localAsUtc = Date.UTC(
+    Number(lookup['year']),
+    Number(lookup['month']) - 1,
+    Number(lookup['day']),
+    // Intl returns "24" instead of "00" when the moment lands on midnight in
+    // some implementations — guard against that by treating 24 as 0.
+    Number(lookup['hour']) % 24,
+    Number(lookup['minute']),
+    Number(lookup['second']),
+  );
+  const offsetMs = localAsUtc - candidate.getTime();
+  const startUtc = new Date(candidate.getTime() - offsetMs);
+  const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000);
+  return { startUtc, endUtc };
 }
 
 function derivePace(
