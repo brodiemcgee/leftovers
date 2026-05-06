@@ -36,7 +36,7 @@ struct HomeView: View {
                     HeroNumber(snapshot: snapshot, scope: scope)
                     PacePill(state: snapshot.pace.state, reason: snapshot.pace.reason)
                     SpendProgressBar(snapshot: snapshot, scope: scope)
-                    SubBudgetsCard(items: snapshot.subBudgets)
+                    SubBudgetsCardLink(items: snapshot.subBudgets)
                     if scope == .today {
                         TodayTransactionsCard()
                     } else {
@@ -257,6 +257,19 @@ private struct MarkedProgressBar: View {
             .frame(maxHeight: .infinity, alignment: .center)
         }
         .frame(height: 16)
+    }
+}
+
+private struct SubBudgetsCardLink: View {
+    let items: [SubBudgetProgress]
+    var body: some View {
+        NavigationLink {
+            SubBudgetsView()
+        } label: {
+            SubBudgetsCard(items: items)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
