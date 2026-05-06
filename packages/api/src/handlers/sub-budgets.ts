@@ -247,6 +247,9 @@ export async function handleSubBudgetTransactions(req: Request, subBudgetId: str
 
     if (budget.is_catchall) {
       // Catch-all: anything NOT in another envelope's category.
+      // IMPORTANT: must include category_id IS NULL (uncategorised) to match
+      // the sub_budget_progress view's spent_cents calculation. Postgrest
+      // `not in` excludes nulls in SQL, so we OR in the null check.
       const { data: covered } = await supabase
         .from('sub_budgets')
         .select('category_id')
@@ -255,9 +258,11 @@ export async function handleSubBudgetTransactions(req: Request, subBudgetId: str
         .not('category_id', 'is', null);
       const coveredIds = (covered ?? []).map((r) => r.category_id).filter((v): v is string => !!v);
       if (coveredIds.length > 0) {
-        // Postgrest "not in" — pass values comma-joined.
-        query = query.not('category_id', 'in', `(${coveredIds.map((id) => `"${id}"`).join(',')})`);
+        const list = coveredIds.map((id) => `"${id}"`).join(',');
+        query = query.or(`category_id.is.null,category_id.not.in.(${list})`);
       }
+      // If no other envelopes have categories, all discretionary tx count —
+      // no extra filter needed.
     } else if (budget.category_id) {
       query = query.eq('category_id', budget.category_id);
     } else {

@@ -67,11 +67,18 @@ export async function handleHeadroom(req: Request): Promise<Response> {
     );
 
     // Per-envelope today contribution: same logic but grouped by category.
+    // Uncategorised transactions are tracked separately and roll into the
+    // catch-all envelope (mirrors the sub_budget_progress view).
     const todayByCategory = new Map<string, number>();
+    let todayUncategorised = 0;
     for (const t of todayTx) {
-      if (!t.categoryId) continue;
       const c = amortisedTodayContribution(t.amountCents, t.postedAt, t.amortiseDays);
-      if (c > 0) todayByCategory.set(t.categoryId, (todayByCategory.get(t.categoryId) ?? 0) + c);
+      if (c <= 0) continue;
+      if (!t.categoryId) {
+        todayUncategorised += c;
+      } else {
+        todayByCategory.set(t.categoryId, (todayByCategory.get(t.categoryId) ?? 0) + c);
+      }
     }
 
     const subBudgets = await supabase
@@ -103,7 +110,7 @@ export async function handleHeadroom(req: Request): Promise<Response> {
         .filter((b) => !b.is_catchall && b.category_id)
         .map((b) => b.category_id as string),
     );
-    let catchallSpentToday = 0;
+    let catchallSpentToday = todayUncategorised;
     for (const [catId, val] of todayByCategory) {
       if (!coveredCategoryIds.has(catId)) catchallSpentToday += val;
     }
