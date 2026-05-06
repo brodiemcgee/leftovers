@@ -312,6 +312,13 @@ export interface Database {
         Args: { p_user_id: string; p_outbound_id: string; p_inbound_id: string };
         Returns: void;
       };
+      forecast_period_for_user: {
+        Args: { p_user_id: string; p_as_of?: string };
+        Returns: {
+          period_start: string;
+          period_end: string;
+        }[];
+      };
     };
     Enums: {
       account_source: AccountSource;
