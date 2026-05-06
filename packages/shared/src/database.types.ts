@@ -213,6 +213,9 @@ export interface Database {
           target_cents: number;
           is_catchall: boolean;
           display_order: number;
+          percentage: number | null;
+          cap_cents: number | null;
+          receives_overflow: boolean;
           created_at: string;
           updated_at: string;
         };
