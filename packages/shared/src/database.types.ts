@@ -286,6 +286,10 @@ export interface Database {
           target_cents: number;
           is_catchall: boolean;
           display_order: number;
+          category_id: string | null;
+          percentage: number | null;
+          cap_cents: number | null;
+          receives_overflow: boolean;
           spent_cents: number;
         };
       };
