@@ -9,17 +9,22 @@ public final class TransactionDetailViewModel: ObservableObject {
     @Published public var selectedCategorySlug: String?
     @Published public var selectedClassification: Classification = .discretionary
     @Published public var applyToFuture: Bool = false
+    @Published public var amortiseDays: Int = 1
 
     private let id: String
     private var initialCategorySlug: String?
     private var initialClassification: Classification?
+    private var initialAmortiseDays: Int = 1
 
     public init(id: String) {
         self.id = id
     }
 
     public var hasChanges: Bool {
-        selectedCategorySlug != initialCategorySlug || selectedClassification != initialClassification || applyToFuture
+        selectedCategorySlug != initialCategorySlug
+            || selectedClassification != initialClassification
+            || applyToFuture
+            || amortiseDays != initialAmortiseDays
     }
 
     public func load() async {
@@ -33,6 +38,8 @@ public final class TransactionDetailViewModel: ObservableObject {
             selectedCategorySlug = nil
             selectedClassification = response.transaction.classification ?? .discretionary
             initialClassification = selectedClassification
+            amortiseDays = response.transaction.amortiseDays ?? 1
+            initialAmortiseDays = amortiseDays
         } catch let err {
             error = (err as NSError).localizedDescription
         }
@@ -45,7 +52,8 @@ public final class TransactionDetailViewModel: ObservableObject {
         let body = PatchBody(
             categorySlug: selectedCategorySlug,
             classification: selectedClassification.rawValue,
-            applyToFutureFromMerchant: applyToFuture
+            applyToFutureFromMerchant: applyToFuture,
+            amortiseDays: amortiseDays
         )
         do {
             let _: AckResponse = try await APIClient.shared.patch(
@@ -66,5 +74,6 @@ struct PatchBody: Encodable {
     let categorySlug: String?
     let classification: String
     let applyToFutureFromMerchant: Bool
+    let amortiseDays: Int
 }
 struct AckResponse: Decodable { let ok: Bool? }

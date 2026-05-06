@@ -28,18 +28,51 @@ export async function handleHeadroom(req: Request): Promise<Response> {
       .maybeSingle();
     const userTz = userPrefs.data?.timezone ?? 'Australia/Melbourne';
     const { startUtc: todayStart, endUtc: todayEnd } = localDayBounds(new Date(asOf), userTz);
-    const today = await supabase
+
+    // Compute today's daily allowance contribution from a transaction. For
+    // amortise_days = 1 this is the full amount on the posted_at day. For
+    // longer windows (petrol spread over a fortnight, etc) we hand back
+    // amount/amortise_days for every day inside [posted_at, posted_at + N).
+    const dayMs = 24 * 60 * 60 * 1000;
+    function amortisedTodayContribution(amountCents: number, postedAt: Date, amortiseDays: number): number {
+      if (amountCents >= 0) return 0; // outflows only
+      const windowEnd = new Date(postedAt.getTime() + amortiseDays * dayMs);
+      const overlapsToday = postedAt < todayEnd && windowEnd > todayStart;
+      if (!overlapsToday) return 0;
+      return -amountCents / Math.max(1, amortiseDays);
+    }
+    // Pull every discretionary outflow whose amortisation window could
+    // overlap today: posted within the past year (cap on amortise_days)
+    // and not posted in the future.
+    const lookbackStart = new Date(todayStart.getTime() - 366 * dayMs);
+    const todayQuery = await supabase
       .from('transactions')
-      .select('amount_cents')
+      .select('amount_cents, posted_at, amortise_days, category_id')
       .eq('user_id', userId)
       .eq('classification', 'discretionary')
       .lt('amount_cents', 0)
-      .gte('posted_at', todayStart.toISOString())
+      .gte('posted_at', lookbackStart.toISOString())
       .lt('posted_at', todayEnd.toISOString());
-    const spentTodayCents = (today.data ?? []).reduce(
-      (sum, r) => sum + Math.max(0, -(r.amount_cents ?? 0)),
-      0,
+    const todayTx = (todayQuery.data ?? []).map((r) => ({
+      amountCents: r.amount_cents ?? 0,
+      postedAt: new Date(r.posted_at),
+      amortiseDays: Math.max(1, r.amortise_days ?? 1),
+      categoryId: (r as { category_id?: string | null }).category_id ?? null,
+    }));
+    const spentTodayCents = Math.round(
+      todayTx.reduce(
+        (sum, t) => sum + amortisedTodayContribution(t.amountCents, t.postedAt, t.amortiseDays),
+        0,
+      ),
     );
+
+    // Per-envelope today contribution: same logic but grouped by category.
+    const todayByCategory = new Map<string, number>();
+    for (const t of todayTx) {
+      if (!t.categoryId) continue;
+      const c = amortisedTodayContribution(t.amountCents, t.postedAt, t.amortiseDays);
+      if (c > 0) todayByCategory.set(t.categoryId, (todayByCategory.get(t.categoryId) ?? 0) + c);
+    }
 
     const subBudgets = await supabase
       .from('sub_budget_progress')
@@ -56,6 +89,39 @@ export async function handleHeadroom(req: Request): Promise<Response> {
       (subBudgets.data ?? []) as never,
       discretionaryCents,
     );
+
+    // Per-envelope today metrics. target_today = monthly_target ÷
+    // days_in_period (constant per period, independent of overspend).
+    // spent_today_cents counts amortised contributions falling on today,
+    // bucketed by the envelope's category. Catch-all gets the leftover
+    // contributions whose category isn't covered by another envelope.
+    const periodStartMs2 = new Date(data.period_start).getTime();
+    const periodEndMs2 = new Date(data.period_end).getTime();
+    const totalDays2 = Math.max(1, Math.round((periodEndMs2 - periodStartMs2) / dayMs));
+    const coveredCategoryIds = new Set(
+      subBudgetRows
+        .filter((b) => !b.is_catchall && b.category_id)
+        .map((b) => b.category_id as string),
+    );
+    let catchallSpentToday = 0;
+    for (const [catId, val] of todayByCategory) {
+      if (!coveredCategoryIds.has(catId)) catchallSpentToday += val;
+    }
+    type WithToday = (typeof subBudgetRows)[number] & {
+      target_today_cents: number;
+      spent_today_cents: number;
+    };
+    const subBudgetRowsWithToday: WithToday[] = subBudgetRows.map((b) => ({
+      ...b,
+      target_today_cents: Math.floor(b.target_cents / totalDays2),
+      spent_today_cents: Math.round(
+        b.is_catchall
+          ? catchallSpentToday
+          : b.category_id
+            ? todayByCategory.get(b.category_id) ?? 0
+            : 0,
+      ),
+    }));
 
     const upcoming = await supabase
       .from('fixed_obligations')
@@ -86,7 +152,7 @@ export async function handleHeadroom(req: Request): Promise<Response> {
       burnRateCents: burn.data ?? 0,
       spentTodayCents,
       dailyAllowanceCents,
-      subBudgets: subBudgetRows,
+      subBudgets: subBudgetRowsWithToday,
       upcoming: upcoming.data,
       pace: derivePace(data, burn.data ?? 0),
     });

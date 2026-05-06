@@ -119,7 +119,37 @@ export async function handleSubBudgetsList(req: Request): Promise<Response> {
     const discretionaryCents = hr ? hr.forecast_income_cents - hr.forecast_fixed_cents : 0;
     const computed = applyDynamicAllocation((data ?? []) as SubBudgetRow[], discretionaryCents);
 
-    return jsonResponse({ subBudgets: computed });
+    // Annotate per-envelope today metrics — see headroom.ts for the
+    // amortisation logic. Re-implementing here lightly so this endpoint
+    // stays self-contained.
+    const period = await supabase
+      .rpc('forecast_period_for_user', { p_user_id: userId })
+      .single() as { data: { period_start: string; period_end: string } | null };
+    const totalDays = period.data
+      ? Math.max(
+          1,
+          Math.round(
+            (new Date(period.data.period_end).getTime() -
+              new Date(period.data.period_start).getTime()) /
+              (24 * 60 * 60 * 1000),
+          ),
+        )
+      : 30;
+
+    type WithToday = (typeof computed)[number] & {
+      target_today_cents: number;
+      spent_today_cents: number;
+    };
+    const annotated: WithToday[] = computed.map((b) => ({
+      ...b,
+      target_today_cents: Math.floor(b.target_cents / totalDays),
+      // Per-envelope spent_today not computed in this endpoint to keep it
+      // light — the home page uses /api/headroom which has it. Surface 0
+      // here; iOS treats absent as zero on the management list.
+      spent_today_cents: 0,
+    }));
+
+    return jsonResponse({ subBudgets: annotated });
   } catch (e) {
     if (e instanceof UnauthorizedError) return errorResponse(401, e.message);
     captureError(e, { handler: 'sub-budgets:list' });

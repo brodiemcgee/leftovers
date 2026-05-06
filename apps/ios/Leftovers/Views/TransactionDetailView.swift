@@ -46,6 +46,26 @@ struct TransactionDetailView: View {
                 }
 
                 Section {
+                    Picker("Spread over", selection: $viewModel.amortiseDays) {
+                        Text("Just today").tag(1)
+                        Text("3 days").tag(3)
+                        Text("1 week").tag(7)
+                        Text("Fortnight").tag(14)
+                        Text("Month").tag(30)
+                    }
+                    if viewModel.amortiseDays > 1 {
+                        let perDay = Double(detail.amountCents) / Double(viewModel.amortiseDays)
+                        Text("≈ \(Money.format(cents: Int64(perDay.rounded()))) / day")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Amortise")
+                } footer: {
+                    Text("Big purchases like a fortnight of petrol can be spread across multiple days so they don't blow today's allowance.")
+                }
+
+                Section {
                     if let reasoning = detail.classificationReasoning {
                         Text(reasoning)
                             .font(.footnote)

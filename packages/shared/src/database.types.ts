@@ -142,6 +142,7 @@ export interface Database {
           user_overridden: boolean;
           classification_reasoning: string | null;
           raw_payload: Json | null;
+          amortise_days: number;
           created_at: string;
           updated_at: string;
         };

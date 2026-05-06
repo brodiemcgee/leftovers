@@ -36,7 +36,7 @@ struct HomeView: View {
                     HeroNumber(snapshot: snapshot, scope: scope)
                     PacePill(state: snapshot.pace.state, reason: snapshot.pace.reason)
                     SpendProgressBar(snapshot: snapshot, scope: scope)
-                    SubBudgetsCardLink(items: snapshot.subBudgets)
+                    SubBudgetsCardLink(items: snapshot.subBudgets, scope: scope, periodStart: snapshot.headroom.periodStart, periodEnd: snapshot.headroom.periodEnd)
                     if scope == .today {
                         TodayTransactionsCard()
                     } else {
@@ -262,11 +262,14 @@ private struct MarkedProgressBar: View {
 
 private struct SubBudgetsCardLink: View {
     let items: [SubBudgetProgress]
+    let scope: HeadroomScope
+    let periodStart: Date
+    let periodEnd: Date
     var body: some View {
         NavigationLink {
             SubBudgetsView()
         } label: {
-            SubBudgetsCard(items: items)
+            SubBudgetsCard(items: items, scope: scope, periodStart: periodStart, periodEnd: periodEnd)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -275,22 +278,44 @@ private struct SubBudgetsCardLink: View {
 
 private struct SubBudgetsCard: View {
     let items: [SubBudgetProgress]
+    let scope: HeadroomScope
+    let periodStart: Date
+    let periodEnd: Date
+
+    private var pacePct: Double {
+        switch scope {
+        case .month:
+            let total = periodEnd.timeIntervalSince(periodStart)
+            guard total > 0 else { return 0 }
+            return max(0, min(1, Date().timeIntervalSince(periodStart) / total))
+        case .today:
+            var cal = Calendar(identifier: .gregorian)
+            cal.timeZone = TimeZone(identifier: "Australia/Melbourne") ?? .current
+            let dayStart = cal.startOfDay(for: Date())
+            return max(0, min(1, Date().timeIntervalSince(dayStart) / 86400))
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Sub-budgets").font(.headline)
+            Text(scope == .today ? "Sub-budgets · today" : "Sub-budgets").font(.headline)
             ForEach(items) { item in
+                let target = scope == .today ? (item.targetTodayCents ?? max(1, item.targetCents / 30)) : item.targetCents
+                let spent = scope == .today ? (item.spentTodayCents ?? 0) : item.spentCents
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(item.name).font(.subheadline)
                         Spacer()
-                        Text("\(Money.format(cents: item.spentCents, sign: .never)) / \(Money.format(cents: item.targetCents, sign: .never))")
+                        Text("\(Money.format(cents: spent, sign: .never)) / \(Money.format(cents: target, sign: .never))")
                             .font(.footnote.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
-                    ProgressView(
-                        value: min(1, Double(item.spentCents) / max(1, Double(item.targetCents)))
+                    MarkedProgressBar(
+                        progress: max(0, min(1, target > 0 ? Double(spent) / Double(target) : 0)),
+                        markerAt: pacePct,
+                        overBudget: spent > target
                     )
-                    .tint(item.spentCents > item.targetCents ? .red : .accentColor)
+                    .frame(height: 12)
                 }
             }
         }

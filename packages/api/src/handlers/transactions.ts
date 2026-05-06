@@ -67,6 +67,8 @@ const PatchBody = z.object({
   categorySlug: z.string().optional(),
   classification: z.enum(['fixed', 'discretionary', 'internal', 'income', 'refund']).optional(),
   applyToFutureFromMerchant: z.boolean().default(false),
+  /** Spread the transaction's daily-allowance impact across N days. */
+  amortiseDays: z.number().int().min(1).max(366).optional(),
 });
 
 export async function handleTransactionUpdate(req: Request, transactionId: string): Promise<Response> {
@@ -97,6 +99,7 @@ export async function handleTransactionUpdate(req: Request, transactionId: strin
     const update: Record<string, unknown> = { user_overridden: true, classified_by: 'user' };
     if (categoryId !== undefined) update['category_id'] = categoryId;
     if (body.classification) update['classification'] = body.classification;
+    if (body.amortiseDays !== undefined) update['amortise_days'] = body.amortiseDays;
 
     const { error: updErr } = await supabase.from('transactions').update(update).eq('id', transactionId);
     if (updErr) throw updErr;

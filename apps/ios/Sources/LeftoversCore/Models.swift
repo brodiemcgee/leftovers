@@ -25,6 +25,8 @@ public struct SubBudgetProgress: Codable, Identifiable, Equatable {
     public let percentage: Double?
     public let capCents: Int64?
     public let receivesOverflow: Bool?
+    public let targetTodayCents: Int64?
+    public let spentTodayCents: Int64?
 }
 
 public struct UpcomingItem: Codable, Identifiable, Equatable {
@@ -223,6 +225,7 @@ public struct TransactionDetail: Codable, Equatable {
     public let categoryId: String?
     public let pairedTransactionId: String?
     public let accountId: String
+    public let amortiseDays: Int?
 
     public var postedAtFormatted: String {
         let f = DateFormatter()
