@@ -15,16 +15,19 @@ struct SubBudgetsView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(viewModel.items) { item in
-                Button {
-                    editing = item
+                NavigationLink {
+                    SubBudgetTransactionsView(subBudget: item)
                 } label: {
                     SubBudgetRow(item: item)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-            }
-            .onDelete { offsets in
-                Task { await viewModel.delete(at: offsets) }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button("Edit") { editing = item }.tint(.blue)
+                    if !item.isCatchall {
+                        Button("Delete", role: .destructive) {
+                            Task { await viewModel.delete(item) }
+                        }
+                    }
+                }
             }
         }
         .navigationTitle("Sub-budgets")

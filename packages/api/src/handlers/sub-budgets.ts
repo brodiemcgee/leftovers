@@ -79,6 +79,73 @@ export async function handleSubBudgetsUpsert(req: Request): Promise<Response> {
   }
 }
 
+/**
+ * List transactions that count toward a single sub-budget envelope, scoped
+ * to the current month period. For an envelope tied to a category we filter
+ * by that category. For the catch-all envelope we return transactions that
+ * are NOT covered by any other envelope's category — same logic the
+ * sub_budget_progress view uses to compute spent_cents.
+ */
+export async function handleSubBudgetTransactions(req: Request, subBudgetId: string): Promise<Response> {
+  try {
+    const { userId, supabase } = await authenticate(req);
+
+    const { data: budget, error: bErr } = await supabase
+      .from('sub_budgets')
+      .select('id, name, category_id, is_catchall')
+      .eq('id', subBudgetId)
+      .eq('user_id', userId)
+      .single();
+    if (bErr || !budget) return errorResponse(404, 'sub-budget not found');
+
+    // Period bounds — match the SQL view: calendar month in the user's tz.
+    const period = await supabase
+      .rpc('forecast_period_for_user', { p_user_id: userId })
+      .single() as { data: { period_start: string; period_end: string } | null; error: unknown };
+    if (!period.data) return errorResponse(500, 'period lookup failed');
+
+    let query = supabase
+      .from('transactions')
+      .select(
+        'id, posted_at, amount_cents, currency, merchant_raw, merchant_normalised, description, classification, category_id, classified_by, accounts(display_name, account_type), categories(slug, name)',
+      )
+      .eq('user_id', userId)
+      .eq('classification', 'discretionary')
+      .gte('posted_at', period.data.period_start)
+      .lt('posted_at', period.data.period_end)
+      .order('posted_at', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (budget.is_catchall) {
+      // Catch-all: anything NOT in another envelope's category.
+      const { data: covered } = await supabase
+        .from('sub_budgets')
+        .select('category_id')
+        .eq('user_id', userId)
+        .eq('is_catchall', false)
+        .not('category_id', 'is', null);
+      const coveredIds = (covered ?? []).map((r) => r.category_id).filter((v): v is string => !!v);
+      if (coveredIds.length > 0) {
+        // Postgrest "not in" — pass values comma-joined.
+        query = query.not('category_id', 'in', `(${coveredIds.map((id) => `"${id}"`).join(',')})`);
+      }
+    } else if (budget.category_id) {
+      query = query.eq('category_id', budget.category_id);
+    } else {
+      // No category — empty list.
+      return jsonResponse({ subBudget: budget, transactions: [] });
+    }
+
+    const { data: tx, error: tErr } = await query;
+    if (tErr) throw tErr;
+    return jsonResponse({ subBudget: budget, transactions: tx });
+  } catch (e) {
+    if (e instanceof UnauthorizedError) return errorResponse(401, e.message);
+    captureError(e, { handler: 'sub-budgets:transactions', subBudgetId });
+    return errorResponse(500, 'failed to list sub-budget transactions');
+  }
+}
+
 export async function handleSubBudgetDelete(req: Request, id: string): Promise<Response> {
   try {
     const { userId, supabase } = await authenticate(req);

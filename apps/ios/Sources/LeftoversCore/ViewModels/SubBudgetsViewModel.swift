@@ -29,6 +29,12 @@ public final class SubBudgetsViewModel: ObservableObject {
             try? await APIClient.shared.delete("/api/sub-budgets/\(item.id)")
         }
     }
+
+    public func delete(_ item: SubBudgetProgress) async {
+        guard !item.isCatchall else { return }
+        items.removeAll { $0.id == item.id }
+        try? await APIClient.shared.delete("/api/sub-budgets/\(item.id)")
+    }
 }
 
 /// Editor for a single sub-budget — backs the New / Edit sheet.
