@@ -78,6 +78,11 @@ public struct AccountStub: Codable, Equatable {
     public let accountType: String?
 }
 
+public struct CategoryStub: Codable, Equatable {
+    public let slug: String
+    public let name: String
+}
+
 public enum Classification: String, Codable, CaseIterable, Equatable {
     case fixed, discretionary, internalTransfer = "internal", income, refund
 
@@ -226,6 +231,9 @@ public struct TransactionDetail: Codable, Equatable {
     public let pairedTransactionId: String?
     public let accountId: String
     public let amortiseDays: Int?
+    public let categories: CategoryStub?
+
+    public var categorySlug: String? { categories?.slug }
 
     public var postedAtFormatted: String {
         let f = DateFormatter()

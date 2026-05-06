@@ -35,11 +35,13 @@ public final class TransactionDetailViewModel: ObservableObject {
                 "/api/transactions/\(id)"
             )
             detail = response.transaction
-            selectedCategorySlug = nil
+            selectedCategorySlug = response.transaction.categorySlug
+            initialCategorySlug = selectedCategorySlug
             selectedClassification = response.transaction.classification ?? .discretionary
             initialClassification = selectedClassification
             amortiseDays = response.transaction.amortiseDays ?? 1
             initialAmortiseDays = amortiseDays
+            applyToFuture = false
         } catch let err {
             error = (err as NSError).localizedDescription
         }

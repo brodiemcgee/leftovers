@@ -74,6 +74,11 @@ struct SubBudgetTransactionsView: View {
         .navigationTitle(subBudget.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load(subBudgetId: subBudget.id) }
+        .onAppear {
+            // Reload when popping back from a transaction detail so a category
+            // change is reflected (the transaction may no longer belong here).
+            Task { await viewModel.load(subBudgetId: subBudget.id) }
+        }
         .refreshable { await viewModel.load(subBudgetId: subBudget.id) }
     }
 }
